@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip3:*)",
+      "Bash(python3:*)",
+      "Bash(sudo:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(export:*)",
+      "Bash(chmod:*)",
+      "Bash(__NEW_LINE__ echo \"=== 查看Base_Agent中NN的使用情况 ===\")",
+      "Bash(nvidia-smi:*)",
+      "Bash(find:*)",
+      "Bash(netstat:*)",
+      "Bash(lsof:*)",
+      "Bash(ss:*)",
+      "Bash(curl -v http://localhost:6006)",
+      "Bash(curl:*)",
+      "Bash(ping:*)",
+      "Bash(wget:*)",
+      "Bash(ip:*)",
+      "Bash(nc:*)",
+      "Bash(# 这是服务器端会执行的命令 - 在本地SSH会话中看这个示例)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
