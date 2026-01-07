@@ -71,7 +71,7 @@ def train_sac(num_episodes_to_run=None):
     # 请根据您的实际情况修改此路径
     # 例如：'G:/CS_Projects/uav_irs_project/uav_irs-master/SAC/runs'
     # 注意使用正斜杠 '/'
-    base_log_dir = 'G:/CS_Projects/uav_irs_project/uav_irs-master/SAC/runs'
+    base_log_dir = 'runs'
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_dir = os.path.join(base_log_dir, timestamp)
@@ -97,33 +97,46 @@ def train_sac(num_episodes_to_run=None):
     ]
     # --- *** 核心修改点结束 *** ---
 
-    config.hyperparameters = {
-        "gradient_clipping_norm": 5.0,  # 可以适当调大
-        "discount_rate": 0.99,  # 对于长回合任务，通常需要更高的折扣率
 
-        "min_steps_before_learning": 1000,  # *** MODIFIED: 先收集一些数据再开始学习 ***
+    config.hyperparameters = {
+        # --- 核心参数 ---
+        "discount_rate": 0.99,
         "batch_size": 256,
-        "update_every_n_steps": 1,  # *** MODIFIED: 每一步都更新，更充分地利用数据 ***
+        "min_steps_before_learning": 1000,
+        "update_every_n_steps": 1,
         "learning_updates_per_learning_session": 1,
 
+        # --- SAC 特定参数 ---
+        "alpha_learning_rate": 3e-4,
         "automatically_tune_entropy_hyperparameter": True,
-        "entropy_term_weight": None,  # 自动调整时，此项无效
+        "entropy_term_weight": None,
+
+        # --- *** 关键修复：补全缺失的通用参数 *** ---
+        "gradient_clipping_norm": 5.0,
+        "normalise_rewards": False,  # 是否对奖励进行归一化
+        "clip_rewards": False,  # 是否裁剪奖励值
+        "add_extra_noise": False,  # 是否添加额外噪声 (当前报错项)
+        "do_evaluation_iterations": True,  # 是否在训练中进行评估迭代
+        # 下面两个参数可能不直接使用，但也加上以防万一
+        "epsilon_decay_rate_denominator": 1.0,
+        "exploration_worker_difference": 2.0,
+        # --- *** 修复结束 *** ---
 
         "Actor": {
-            "learning_rate": 3e-4,  # 0.0003
+            "learning_rate": 3e-4,
             "linear_hidden_units": [256, 256],
             "final_layer_activation": None,
             "batch_norm": False,
             "tau": 0.005,
-            "gradient_clipping_norm": 5.0,
+            "gradient_clipping_norm": 5.0,  # Actor/Critic内部的梯度裁剪可以保留
         },
 
         "Critic": {
-            "learning_rate": 3e-4,  # 0.0003
+            "learning_rate": 3e-4,
             "linear_hidden_units": [256, 256],
             "final_layer_activation": None,
             "batch_norm": False,
-            "buffer_size": int(1e6),  # 100万的经验池
+            "buffer_size": int(1e6),
             "tau": 0.005,
             "gradient_clipping_norm": 5.0,
         },
@@ -156,4 +169,4 @@ def train_sac(num_episodes_to_run=None):
 
 if __name__ == '__main__':
     # 运行24000个回合的训练
-    train_sac(num_episodes_to_run=24000)
+    train_sac(num_episodes_to_run=1000)
