@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM 边缘卸载论文 — 问题背景整理</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.8;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            color: #333;
+            background-color: #fafafa;
+        }
+        h1 {
+            text-align: center;
+            color: #1a1a1a;
+            border-bottom: 2px solid #333;
+            padding-bottom: 12px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #1a5276;
+            border-left: 5px solid #2980b9;
+            padding-left: 12px;
+            margin-top: 40px;
+        }
+        h3 {
+            color: #2c3e50;
+            margin-top: 24px;
+        }
+        a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+            font-size: 0.95em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px 14px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #2980b9;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) { background-color: #f2f7fb; }
+        tr:hover { background-color: #e8f4f8; }
+        ul, ol { padding-left: 24px; }
+        li { margin-bottom: 6px; }
+        strong { color: #1a1a1a; }
+        hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+        .formula {
+            background-color: #f4f6f8;
+            border: 1px solid #dde3e8;
+            border-radius: 6px;
+            padding: 12px 18px;
+            margin: 14px 0;
+            font-family: "Cambria Math", Georgia, serif;
+            font-size: 1.05em;
+            text-align: center;
+        }
+        .codeblock {
+            background-color: #2b2b2b;
+            color: #e6e6e6;
+            border-radius: 6px;
+            padding: 16px 20px;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            white-space: pre;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 12px 18px;
+            margin: 16px 0;
+            border-radius: 4px;
+        }
+        .note {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Efficient Layer-Granularity Unloading for LLMs in Edge Computing</h1>
+
+<h2>一、这篇论文在解决什么问题</h2>
+
+<p><strong>场景：</strong>在<strong>边缘服务器</strong>上用容器部署大模型（LLM）提供服务。边缘服务器 GPU 显存有限，而 LLM 请求是<strong>高度突发、稀疏</strong>的——有请求时要快速响应，没请求时模型就闲置在显存里。</p>
+
+<p><strong>核心矛盾：</strong></p>
+<ul>
+    <li>如果<strong>一直把模型留在显存里</strong>（persist retention）→ 响应快，但长期占用显存，<strong>内存成本高</strong></li>
+    <li>如果<strong>把模型卸载掉</strong>（unload）→ 省显存，但下次请求来了要<strong>重新加载</strong>，加载几十亿参数很慢（例：7B 模型从磁盘加载到 GPU 约 <strong>4800 ms</strong>），会违反 QoS</li>
+</ul>
+
+<div class="highlight">
+<strong>创新切入点：</strong>不再是"整个模型留 / 整个模型卸"这种粗粒度二选一，而是<strong>按层（layer）粒度</strong>决定——比如 5 层的模型，可以只保留 1-3 层、卸载 4-5 层。下次请求只需重载卸掉的那几层，加载延迟大幅降低。
+</div>
+
+<hr>
+
+<h2>二、决策变量（Decision Variables）</h2>
+
+<p><strong>核心决策变量只有一个：每一层的"卸载时刻" <em>t<sub>i</sub></em></strong></p>
+
+<div class="formula">( t<sub>1</sub>, t<sub>2</sub>, &hellip;, t<sub>|&#8464;|</sub> )</div>
+
+<ul>
+    <li>模型有 |&#8464;| 层，从模型进入空闲状态（<em>t</em> = 0）开始计时</li>
+    <li><em>t<sub>i</sub></em> = 第 <em>i</em> 层在空闲多久之后被卸载</li>
+    <li>特殊情况：<em>t<sub>i</sub></em> = +&infin; 表示第 <em>i</em> 层<strong>永远保留</strong>在显存里</li>
+</ul>
+
+<p>所以决策本质是回答两个问题：<strong>"哪些层要卸载" + "什么时候卸载"</strong>（which layers to unload and when）。</p>
+
+<p class="note">论文用"保留状态 s<sub>i</sub>"来简化描述：状态 s<sub>i</sub> 表示第 1 到 i 层保留、其余卸载。决策 t<sub>i</sub> 就是从状态 s<sub>i</sub> 转移到 s<sub>i-1</sub>（再多卸一层）的时刻。</p>
+
+<hr>
+
+<h2>三、两个优化目标（Optimization Objectives）</h2>
+
+<p>论文把总成本定义为<strong>两项的加权和</strong>（对应公式 2a）：</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>目标</th>
+            <th>含义</th>
+            <th>变量记号</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>① 加载延迟</strong> (loading delay)</td>
+            <td>下次请求到来时，重载卸掉的层所花的时间</td>
+            <td><em>D<sub>i</sub></em></td>
+        </tr>
+        <tr>
+            <td><strong>② 内存成本</strong> (memory cost)</td>
+            <td>空闲期间保留的层占用显存 × 占用时长</td>
+            <td><em>C<sub>i</sub></em></td>
+        </tr>
+    </tbody>
+</table>
+
+<p>优化目标（最小化）—— 论文原文式 (2a)：</p>
+
+<div class="formula">min &nbsp; <strong>&sum;<sub>i&isin;&#8464;&cup;{0}</sub> &eta; D<sub>i</sub> S<sub>i</sub>(&tau;)</strong> &nbsp;+&nbsp; <strong>&int;<sub>0<sup>+</sup></sub><sup>&tau;</sup> &sum;<sub>i&isin;&#8464;&cup;{0}</sub> C<sub>i</sub> S<sub>i</sub>(t) dt</strong><br>
+<span class="note">（加载延迟的期望）&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;（内存成本的期望）</span></div>
+
+<p>为了一眼看清 trade-off 的两项，可以把它简化成"某时刻确定处于某个状态 <em>i</em>"的<strong>直觉版</strong>：</p>
+
+<div class="formula">min &nbsp; <strong>&eta; &middot; D<sub>i</sub>(&tau;)</strong> &nbsp;+&nbsp; <strong>&int;<sub>0</sub><sup>&tau;</sup> C<sub>i</sub>(t) dt</strong><br>
+<span class="note">（加载延迟）&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;（内存成本）</span></div>
+
+<ul>
+    <li>&eta; 是权重（动机示例 TABLE I 中取 30），把"延迟"换算成和"内存成本"同一个量纲，方便加权求和</li>
+    <li>&tau; 是<strong>下一次请求到达的时刻</strong>（关键：这个是未知的、随机的）</li>
+    <li><em>S<sub>i</sub></em>(t) 是<strong>时刻 t 模型处于状态 s<sub>i</sub> 的概率</strong>（第 1~i 层保留、其余卸载）</li>
+</ul>
+
+<h3>两个式子的区别联系</h3>
+
+<p>差别就在原文多出来的<strong>求和号 &sum;</strong> 和 <strong><em>S<sub>i</sub></em>(t)</strong>：</p>
+
+<table>
+    <thead>
+        <tr>
+            <th></th>
+            <th>原文精确版 (2a)</th>
+            <th>直觉简化版</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>形式</strong></td>
+            <td>对所有状态按概率 S<sub>i</sub>(t) 加权求和 → <strong>期望值</strong></td>
+            <td>假设确定处于单一状态 i</td>
+        </tr>
+        <tr>
+            <td><strong>第一项</strong></td>
+            <td>请求在 &tau; 到达时，各状态延迟成本 &eta;D<sub>i</sub> 按概率加权 = 加载延迟期望</td>
+            <td>当前状态的延迟 &eta;D<sub>i</sub></td>
+        </tr>
+        <tr>
+            <td><strong>第二项</strong></td>
+            <td>每瞬间内存期望 &sum;C<sub>i</sub>S<sub>i</sub>(t)，在 [0,&tau;] 积分 = 内存成本期望</td>
+            <td>当前状态内存 C<sub>i</sub> 的积分</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="highlight">
+<strong>原文用 S<sub>i</sub>(t)：</strong>因为下次请求何时到达（&tau;）完全未知。论文把决策变量 t<sub>i</sub> 最终转成一个<strong>概率密度 P(t)</strong>，再和"对抗性"的到达时间做 minimax 博弈。所以目标必须写成<strong>对状态分布求期望</strong>的形式，才能顺理成章地取期望、推导后面的 ski-rental 问题。<br><br>
+当模型在时刻 t <strong>确定</strong>处于状态 i 时，S<sub>i</sub>(t)=1、其余为 0，求和号消失 → 就退化成直觉版。<strong>两者物理意义一致，只是抽象层次不同。</strong>
+</div>
+
+<p>配套的两个约束也印证了 S<sub>i</sub>(t) 是概率分布：</p>
+<ul>
+    <li><strong>(2b)</strong> &sum;<sub>i</sub> S<sub>i</sub>(t) = 1 → S<sub>i</sub>(t) 是合法概率分布（所有状态概率和为 1）</li>
+    <li><strong>(2c)</strong> S<sub>i</sub>(t) = 0, &nbsp;0 &le; i &le; ǐ&minus;1 → 违反 QoS 的状态概率强制为 0（永不进入）</li>
+</ul>
+
+
+<p><strong>约束条件：</strong>QoS 约束——加载延迟不能超过阈值 <em>D<sub>QoS</sub></em>。这决定了<strong>最少必须保留几层</strong>（记为 ǐ 层，第 1 到 ǐ 层必须常驻，否则一定违反 QoS）。</p>
+
+<hr>
+
+<h2>四、两个目标为什么冲突（关键中的关键）</h2>
+
+
+<div class="codeblock">保留的层越多  →  下次重载的层越少  →  加载延迟 ↓（目标①变好）
+                                  →  但占用显存越多、越久 →  内存成本 ↑（目标②变差）
+
+卸载的层越多  →  省显存  →  内存成本 ↓（目标②变好）
+                        →  但下次要重载更多层 → 加载延迟 ↑（目标①变差）</div>
+
+<p>两个目标是<strong>此消彼长</strong>的关系。论文里有一句话点明了这个结构（系统模型部分）：</p>
+
+<div class="highlight">
+<strong>"内存占用越大的状态，加载延迟越小；反之亦然。"</strong><br>
+即 C<sub>0</sub> &lt; &hellip; &lt; C<sub>|&#8464;|</sub>（保留越多内存越大）同时 D<sub>0</sub> &gt; &hellip; &gt; D<sub>|&#8464;|</sub>（保留越多延迟越小）
+</div>
+
+<p><strong>为什么难权衡：</strong>如果知道下一次请求什么时候来（&tau;），就能算出最优保留几层。但 <strong>&tau; 是未知的、不可预测的</strong>：</p>
+<ul>
+    <li>如果请求<strong>很快就来</strong>，那就该多保留（省得重载，延迟小）</li>
+    <li>如果请求<strong>很久才来</strong>，那就该早点卸载（省内存）</li>
+</ul>
+
+<p>论文用了一个很直观的例子（TABLE I，5 层模型，每层 1s / 1GB，QoS ≤ 2s，权重 &eta;=30；总成本 = 内存 + 30×延迟）：</p>
+<ul>
+    <li>如果下次请求在 <strong>20s</strong> 后到（很快）→ <strong>晚卸载 / 保留</strong>（t=30）最省，总成本 <strong>100</strong>；早卸载（t=10）反而最差，总成本 140</li>
+    <li>如果下次请求在 <strong>35s</strong> 后到（很久）→ <strong>早卸载</strong>（t=10）最省，总成本 <strong>185</strong>；晚卸载（t=30）最差，总成本 225</li>
+    <li><strong>同一个决策在不同到达时间下，成本高低完全相反</strong> → 这就是决策困难的根源（&tau; 未知）</li>
+</ul>
+
+<hr>
+
+
+</body>
+</html>

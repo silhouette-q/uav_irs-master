@@ -1,0 +1,1554 @@
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+1
+
+TJCCT: A Two-timescale Approach for UAV-assisted Mobile Edge Computing
+
+Zemin Sun, Geng Sun, Member, IEEE, Qingqing Wu, Senior Member, IEEE, Long He, Shuang Liang, Hongyang Pan, Dusit Niyato, Fellow, IEEE, Chau Yuen, Fellow, IEEE, and Victor C. M. Leung, Life Fellow, IEEE
+
+Abstract--Unmanned aerial vehicle (UAV)-assisted mobile edge computing (MEC) is emerging as a promising paradigm to provide aerial-terrestrial computing services in close proximity to mobile devices (MDs). However, meeting the demands of computation-intensive and delay-sensitive tasks for MDs poses several challenges, including the demand-supply contradiction between MDs and MEC servers, the demand-supply heterogeneity between MDs and MEC servers, the trajectory control requirements on energy efficiency and timeliness, and the different time-scale dynamics of the network. To address these issues, we first present a hierarchical architecture by incorporating terrestrial-aerial computing capabilities and leveraging UAV flexibility. Furthermore, we formulate a joint computing resource allocation, computation offloading, and trajectory control problem to maximize the system utility. Since the problem is a non-convex and NP-hard mixed integer nonlinear programming (MINLP), we propose a two-timescale joint computing resource allocation, computation offloading, and trajectory control (TJCCT) approach for solving the problem. In the short timescale, we propose a price-incentive model for on-demand computing resource allocation and a matching mechanism-based method for computation offloading. In the long timescale, we propose a convex optimization-based method for UAV trajectory control. Besides, we theoretically prove the stability, optimality, and polynomial complexity of TJCCT. Extended simulation results demonstrate that the proposed TJCCT outperforms the comparative algorithms in terms of the system utility, average processing rate, average completion delay, and average completion ratio.
+Index Terms--UAV-assisted MEC network, computing resource allocation, computation offloading, trajectory control
+
+
+arXiv:2403.15828v1 [eess.SY] 23 Mar 2024
+
+1 INTRODUCTION
+T HE development of wireless communications and the proliferation of mobile devices (MDs) triers various emerging applications, such as autonomous driving, online gaming, and augmented reality. These applications often
+
+This study is supported in part by the National Natural Science Foundation of China (61872158, 62002133, 62172186, 62272194), and in part by the Science and Technology Development Plan Project of Jilin Province (20230201087GX). A part of this paper is accepted by IEEE INFOCOM 2024 (Corresponding author: Geng Sun.)
+
+· Zemin Sun, Geng Sun, Long He, and Hongyang Pan are with
+
+the College of Computer Science and Technology, Jilin University,
+
+Changchun 130012, China, and also with the Key Laboratory of Symbolic
+
+Computation and Knowledge Engineering of Ministry of Education, Jilin
+
+University, Changchun 130012, China.
+
+E-mail:sunzemin@jlu.edu.cn,
+
+sungeng@jlu.edu.cn,
+
+he-
+
+long0517@foxmail.com, panhongyang18@foxmail.com.
+
+· Qingqing Wu is with the Department of Electronic Engineering, Shanghai
+
+Jiao Tong University, Shanghai, China.
+
+E-mail: qingqingwu@sjtu.edu.cn.
+
+· Shuang Liang is with the School of Information Science and Technology,
+
+Northeast Normal University, Changchun 130024, China.
+
+E-mail: liangshuang@nenu.edu.cn.
+
+· Dusit Niyato is with the School of Computer Science and Engineering,
+
+Nanyang Technological University, Singapore 639798.
+
+E-mail: dniyato@ntu.edu.sg.
+
+· Chau Yuen is with the School of Electrical and Electronics Engineering,
+
+Nanyang Technological University, Singapore 639798.
+
+E-mail: chau.yuen@ntu.edu.sg.
+
+· Victor C. M. Leung is with the College of Computer Science and Software
+
+Engineering, Shenzhen University, Shenzhen 518060, China, and also
+
+with the Department of Electrical and Computer Engineering, University
+
+of British Columbia, Vancouver, BC V6T 1Z4, Canada.
+
+E-mail: vleung@ieee.org.
+
+require extensive computing resources and low latency to satisfy the quality of experience (QoE). However, fulfilling the computation-intensive and delay-sensitive computation tasks of these applications poses a great challenge to MDs with insufficient computational capability and finite energy capacity. To tackle this challenge, mobile edge computing (MEC) has been identified as a promising technology to meet the stringent requirements of these applications [1]. By offloading the computation-intensive tasks to proximate MEC servers, the QoE of MDs can be significantly enhanced in a cost-effective and energy-efficient way [2]. However, due to the dependence on terrestrial infrastructures and environment, conventional terrestrial MEC servers are limited by the high cost of deployment, low adaptability to the network dynamic, and fixed service range.
+Recent years have seen a paradigm shift from terrestrial edge computing toward aerial-terrestrial edge computing, i.e., UAV-assisted MEC networks, by integrating UAVs with MEC. With high maneuverability, UAVs could be rapidly and flexibly deployed as aerial MEC servers to assist the terrestrial MEC servers in providing computation offloading services whenever and wherever needed. Moreover, the line-of-sight (LoS) link of UAVs can improve the communication reliability and network capacity of the terrestrial MEC networks.
+Despite the aforementioned benefits, designing an efficient scheme of computation offloading in UAV-assisted MEC systems is facing several unprecedented challenges. i) Demand-Supply Contradiction for Resource Allocation. Compared to the cloud, MEC servers have limited comput-
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+ing capabilities, particularly for aerial MEC servers with constrained carrying capacity. However, the computation tasks of MDs are often computation-hungry and latencysensitive. This demand-supply contradiction between the limited computing resources of MEC servers and the stringent requirement of MDs poses a challenge for efficient computing resource allocation. ii) Demand-Supply Heterogeneity for Computation Offloading. Different computation tasks of MDs have diverse requirements on computing resources, while different MEC servers possess varying computing capabilities. This demand-supply heterogeneity between the computation tasks of MDs and MEC servers could incur resource under-utilization among MEC servers, which brings difficulties in designing efficient computation offloading methods to ensure satisfied QoE for MDs and high resource utilization among MEC servers. iii) EnergyEfficient and Real-Time Trajectory Control. The mobility of MDs and random generation of computation tasks lead to spatiotemporal dynamics in the offloading requirements, which necessitates real-time trajectory control. However, the intrinsic limited onboard energy of UAVs restricts the service time, thus posing challenges for energy-efficient and real-time UAV trajectory control. iv) Different TimeScale Dynamics. The dynamic characteristics of the UAVassisted MEC network, such as the dynamic of the channel, random arrival of tasks, and mobility of MDs, vary across different timescales. Accordingly, integrating these features into a joint optimization framework for computing resource allocation, computation offloading, and trajectory control is significant but leads complexity to the algorithm design.
+This work presents a two-timescale computing resource allocation, task offloading, and UAV trajectory control approach in UAV-assisted MEC. The main contributions are summarized as follows.
+· System Architecture. We employ a hierarchical architecture for the UAV-assisted MEC network that consists of an MD layer, a terrestrial edge layer, an aerial edge layer, and a control layer. Under the coordination of the software-defined network (SDN) controller, the two-timescale decisions are made to deal with the demand-supply contradiction between MDs and MEC servers, demand-supply heterogeneity between MDs and MEC servers, and the spatiotemporal dynamics of computation tasks.
+· Problem Formulation. We formulate a joint computing resource allocation, computation offloading, and trajectory control problem to maximize the system utility that is theoretically modeled by synthesizing the network dynamics between MDs and terrestrial/aerial edge links, MD mobility, MD QoE, and the energy consumption of terrestrial/aerial MEC servers. Moreover, the optimization problem is proved to be a non-convex and NP-hard mixed integer nonlinear programming (MINLP).
+· Algorithm Design. To solve the formulated problem, we propose a two-timescale joint computing resource allocation, computation offloading, and trajectory control (TJCCT) algorithm. Specifically, TJCCT consists of a price-incentive method for on-demand computing resource allocation, a matching mechanism-
+
+2
+based method for computation offloading, and a convex optimization-based method for UAV trajectory control. · Performance Evaluation. The performance of TJCCT is verified through both theoretical analysis and simulation. First, the stability, optimality, and computation complexity of TJCCT are proved theoretically. Furthermore, simulation results demonstrate that TJCCT has better performances and scalability than the baseline algorithms.
+The remaining of this work is organized as follows. Section 2 reviews the related work. Section 3 presents the system model and problem formulation. Section 4 elaborates on the proposed TJCCT. The theoretical analysis is given in Section 5. Section 6 shows the simulation results and discussions. Finally, this work is concluded in Section 7.
+2 RELATED WORK
+In this section, we review the related work on the edge computing architecture, joint computation offloading, computing resource allocation, and the optimization approach.
+2.1 MEC Architecture
+The MEC has been extensively studied to extend the computing capabilities of MDs through computation offloading. Numerous research efforts have focused on leveraging terrestrial MEC to offer low-latency offloading services in different scenarios. For example, Wang et al. [3] presented a non-cooperative computation offloading approach in a single-BS vehicular MEC network. Furthermore, Xia et al. [4] proposed a distributed approach of computation offloading and computing resource management in the energy harvesting-enabled MEC system. Jiang et al. [5] proposed a joint offloading and resource allocation framework for the energy-constrained MEC system, aiming to guarantee the QoE of the users. Moreover, Ding et al. [6] explored minimizing the system energy consumption for the singleterrestrial server and multi-user MEC system. Tao et al. [7] proposed a dynamic pricing-based computation offloading scheme for a single-cell and mult-user MEC system. Additionally, He et al. [8] designed an architecture that combines digital twin and terrestrial MEC to jointly optimize computation offloading and resource allocation. Besides, Zhou et al. [9] focused on an MEC-enabled Internet of things (IoT) system with a BS-amounted MEC and multiple users, and studied the computation offloading for dependent tasks. Besides, However, these studies mainly rely on the terrestrial MEC servers which have fixed coverage, especially in the dense areas of the city where the link between users and MEC servers could experience severe blockage and poor signal strength.
+To offer flexible aerial computing services for users, recent studies have expanded the scope of terrestrial MEC to UAV-assisted MEC. For example, Ding et al. [10] proposed a UAV-assisted MEC secure communication system where the UAVs assist the ground users in computing the offloading task, and the ground jammer generates jamming signals to prevent the UAV eavesdroppers. Lin et al. [11] explored maximizing the energy efficiency and offloading fairness in
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+a single-UAV-assisted MEC system. Yang et al. [12] focused on a UAV-enabled MEC system where the MEC server provides offloading service for energy harvesting devices. In [13], the authors proposed a UAV-assisted architecture for post-disaster rescue by leveraging the computing capability of vehicles. Moreover, Li et al. [14] considered a multiUAV-assisted MEC system and designed a robust approach of computation offloading and trajectory optimization. Besides, Coletta et al. [15] proposed a novel application-aware optimization framework where the UAVs are deployed as MEC servers for image analyses. However, most of these studies consider relatively simple scenarios where only one UAV-assisted MEC server is deployed, or users are assumed to be stationary. This may not be suitable for complex situations with heterogeneous MEC servers and MDs.
+In summary, the existing MEC architecture is inadequate to adapt to the heterogeneous and dynamic scenario of the UAV-assisted MEC system. To this end, we propose a hierarchical architecture to address the limitations of the existing works.
+2.2 Computation Offloading, Resource Allocation, and Trajectory Control
+Researchers have extensively explored various aspects of UAV-assisted MEC systems, with a primary focus on computation offloading, resource allocation, and UAV trajectory control [16], [17].
+To address the limited computing capability of the UAVassisted MEC system, several studies focused on joint computation offloading and computing resource allocation to optimize the performances such as delay, energy consumption, or power. For example, Tun et al. [18] focused on a latency minimization problem in the collaborative UAVassisted MEC system by jointly optimizing the strategies of offloading and resource allocation. Furthermore, Guo et al. [19] studied the problem of joint task scheduling and computing resource allocation to minimize the task processing delay under the constraints of data dependency and UAV energy. Diamanti et al. [20] focused on minimizing the sum of users' maximum experienced delay by jointly optimizing the strategies of computation offloading and computing resource allocation. Ei et al. [21] presented a joint computation offloading and resource allocation problem for UAV-assisted edge computing to minimize the energy consumption of the system. Nie et al. [22] addressed the UAV power minimization problem by jointly optimizing the computation offloading and resource allocation of the UAVassisted MEC system. However, in most of these studies, UAVs are either fixed or follow a predetermined trajectory, which may not be suitable for scenarios with randomdistributed and mobile MDs.
+To harness the full potential of flexible offloading services, considerable research attention has been dedicated to joint optimization of computation offloading and UAV trajectory control. The objectives of these works include delay minimization [23], energy consumption minimization [24]­[26], secure calculation maximization [27], etc. For instance, Han et al. [23] formulated an optimization problem to minimize the average task delay via jointly optimizing user association and UAV deployment. Furthermore, Liu
+
+3
+et al. [24] presented a system energy consumption minimization problem by jointly optimizing the UAV trajectory for the multiple input single output UAV-assisted MEC network. Wang et al. [25] aimed to minimize the energy consumption of the UAV via joint region partitioning and UAV trajectory scheduling. Chen et al. [26] jointly optimized the computation offloading of IoT nodes and trajectory planning of multiple UAVs to maximize the total energy efficiency of the system. Besides, the authors in [27] focused on the maximum-minimum average secrecy capacity for UAVassisted MEC systems by jointly optimizing the trajectory and computation offloading.
+The limitations of these previous studies are summarized as follows. First, these works primarily concentrated on optimizing a single performance of the system, such as latency and energy. Furthermore, most of these studies formulated optimization problems from the perspective of the users or MEC servers while neglecting the heterogeneous requirements of the two sides. However, focusing solely on optimizing one aspect of the performance metric from the perspective of either users or MEC servers, without a holistic consideration of the diverse requirements could lead to imbalanced system performance and poor user experience. To address these limitations, we formulate a problem of joint computation offloading, resource allocation, and trajectory control problem to maximize the system utility, which incorporates delay and energy consumption of both MDs and MEC servers, as well as the dynamics of the network.
+2.3 Optimization Approach
+To tackle the intricate optimization problem of computation offloading, resource allocation, and trajectory control for UAV-assisted MEC, researchers are devoted to effective algorithm design by employing methodologies such as heuristic algorithms [28], swarm intelligent algorithms [29], [30], game theory [31], [32], and reinforcement learning (RL) [33], [34]. For example, Laboni et al. [28] proposed a hyper-heuristic algorithm for resource allocation in the MEC network to jointly optimize the latency, computational, and network load. Furthermore, Goudarzi et al. [29] utilized a cooperative evolutionary method to solve the joint optimization of computation offloading and computing resource allocation. Tian et al. [30] developed a genetic algorithm (GA)-based algorithm for task offloading and UAV scheduling in the UAV-assisted MEC system. Moreover, Zhou et al. [31] studied the computation offloading in the UAVassisted MEC network by employing a Stackelberg game to model the interaction between the MDs and the MEC server. Ning et al. [32] proposed a stochastic game-based approach for multi-user computation offloading and MEC server deployment. In addition, Seid et al. [33] proposed a deep reinforcement learning (DRL)-based algorithm for collaborative computation offloading and resource allocation. Song et al. [34] integrated the evolutionary algorithm with the RL algorithm for computation offloading and trajectory control in UAV-assisted MEC networks.
+However, heuristic algorithms generally lack guaranteed optimality and can be sensitive to initial conditions. Furthermore, swarm intelligence algorithms and Stochastic games
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+4
+
+Fig. 1. The architecture of computing resource allocation, computation offloading, and UAV trajectory control for UAV-assisted MEC system.
+
+often require a substantial number of iterations to converge to a near-optimal solution, resulting in high computation complexity. Moreover, the Stackelberg games are well-suited for single-server situations but may not be appropriate for scenarios involving multiple MEC servers. Moreover, although RL is powerful for training agents to make decisions, it requires a large number of interactions with the environment and significant computational resources, making it costly in the resource-constrained and heterogeneous MEC system. Therefore, we aim to design a low-complexity algorithm capable of facilitating real-time decision-making, mitigating heterogeneity between users and servers, and adapting to the varying timescale dynamics inherent in the UAV-assited MEC system.
+3 SYSTEM MODEL AND PROBLEM FORMULATION
+In this section, a UAV-assisted MEC architecture is first introduced, followed by the models of mobility, communication, computation, and energy consumption.
+3.1 System Model
+This section presents the system overview, basic models, and problem formulation.
+3.1.1 System Overview
+We consider a hierarchical UAV-assisted MEC system as shown in Fig. 1. In the spatial dimension, the hierarchical UAV-assisted MEC system comprises an MD layer, a terrestrial edge layer, an aerial edge layer, and a control layer.
+Specifically, at the MD layer, a set of MDs I = {1, . . . , i, . . . , I} moving in the considered area periodically handle the tasks with diverse requirements. At the terrestrial edge layer, a macro base station (MBS) b equipped with terrestrial MEC server 1 provides edge computing services for the MDs within its service range. At the aerial edge layer, the rotary-wing UAVs U = {1, . . . , U } equipped with aerial MEC servers 2 are dispatched as aerial base stations to assist the MBS in providing supplementary computing services for MDs. At the control layer, the regional SDN controller, on which our algorithm runs, coordinates the decisions regarding computation offloading for MDs, computing resource
+1. Terrestrial MEC server and MBS will be used interchangeably. 2. Aerial MEC server and UAV will be used interchangeably.
+
+allocation for MEC servers, and trajectory control for UAVs based on the knowledge acquired from the terrestrial and aerial edge layers. Furthermore, we consider that the radio access links of the system are allocated orthogonal frequency bands [35]. Besides, both the terrestrial MEC server and aerial MEC servers are collectively referred to MEC server, which is indexed as j  {b}  U .
+In the temporal dimension, we consider that the system operates in a two-timescale manner since the dynamic characteristics for channel state information (CSI), task arrival of MDs, and workload update of edge servers vary in a fine-grained timescale, while the mobility of MDs varies in a long timescale [36]. Specifically, the system time horizon is discretized into T time slots T = {1, . . . , t, . . . , T } with equal slot duration , which is consistent with the coherence block of the wireless channel [37]. Furthermore, every  consecutive slots are combined into a time epoch indexed by t0  T0 = {1, . . . , T0}, where each time epoch is denoted as T (t0) = {(t0 - 1) + 1, . . . , t0}. Here,  is selected to be sufficiently small to guarantee that the UAV's location is approximately constant within each epoch. Therefore, in the short timescale, the CSI, offloading requirements of MDs, and states of MEC servers are captured and updated, and the decisions of task offloading and computing resource allocation are decided. In the long timescale, the mobility states of MDs are captured and updated, and the UAV trajectory planning is decided.
+
+3.1.2 Basic Models
+
+The basic models of the system are given as follows.
+
+(1) MD Mobility Model. The horizontal coordinate of each MD i  I is denoted as qi,t = [xti, yit]TiI . Moreover,
+we adopt the Gauss Markov model [38] to capture the
+
+temporal-dependent randomness in the movement of MDs.
+
+Specifically, the velocity of MD i at time epoch t0 + 1 (i.e.,
+
+time slot (t0 + 1)) can be given as:
+vi(t0+1) = vit0 + (1 - ) v¯ + ¯ 1 - 2wi, (1) where vit0 is the velocity vector at time epoch t0 and wi is the uncorrelated random Gaussian process, i.e., wi  f Gua 0, ¯2 . Besides, 0    1, v¯, and ¯ denote the
+
+memory degree, asymptotic mean, and asymptotic standard
+
+deviation of velocity, respectively. Therefore, the location of
+
+each MD can be updated as:
+
+q(it0+1) = qit0 + vit0, i  I, t0  T0.
+
+(2)
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+(2) UAV Mobility Model. Similar to most existing stud-
+
+ies, e.g., [13], we consider that each UAV j  U flies at
+
+a fixed altitude of H with the instantaneous horizontal coordinate of qtj = [xjt , yjt]jTU . Therefore, the location of
+each UAV can be updated as follows:
+
+q(jt0+1) = qtj0 + vut0, j  U , t0  T0,
+
+(3)
+
+where vjt0 denotes the velocity of UAV j at time epoch
+
+t0. Furthermore, the position of each UAV should satisfy
+
+several practical constraints as follows:
+
+0  xjt  xmax, j  U , t  T ,
+
+(4a)
+
+0  yjt  ymax, j  U , t  T ,
+
+(4b)
+
+qj1 = qIj , qTj 0 = qFj , j  U ,
+
+(4c)
+
+||qj(t0+1) - qtj0||  vUmax, j  U , t0  T0,
+
+(4d)
+
+||qFj - qtj0||  vUmax(T0 - t0), j  U , t0  T0, (4e)
+
+||qtj0 - qtj0 ||  dUsafe, j, j  U , j = j, t0  T0, (4f) where vUmax is the maximum velocity of UAV. Furthermore,
+Constraints (4a) and (4b) guarantee that each UAV cannot
+
+fly beyond the boundary of the considered area. Moreover,
+
+the initial and final positions of UAV j are predetermined by Constraints qjI and qjF , respectively, as given in Constraint (4c) [39]. In addition, Constraints (4d) and (4e) indicate that
+
+the flight distance of a UAV is constrained by the maximum
+
+velocity. Finally, each UAV should keep the minimum safe
+
+distance of dUsafe with the other UAVs to avoid collision, as given in Constraint (4f).
+
+(3) MD Model. Each MD i is characterized by the tuple < fimax, nciore, it, it, Kit >, where fimax represents the computation capability of MD i (in cycles/s), nciore denotes the number of CPU core of MD i, it denotes the energy constraint of MD i, it  {0, 1} is a binary variable that indicates whether a task is generated by MD i during time slot t, and Kit denotes the task generated by MD i in time slot t. Specifically, each MD could generate one task (it = 1) or not (it = 0) in time slot t. Furthermore, due to the
+resource limitation, we assume that each MD is equipped
+
+with a single CPU core, i.e., nciore = 1 [40]. (4) Server Model. Similar to [40], we consider that
+
+each MEC server j  {b, U } are equipped with multi-
+
+core CPUs to enable parallel processing of multiple tasks.
+
+Consequently, each MEC server is characterized by the tuple < njcore, fjmax, Ejmax >, where njcore denotes the number of CPU cores, and each of these CPU cores assumed to have homogeneous computational resources of fjmax (cycles/s).
+(5) Computation Task Model. MDs have heterogeneous
+
+requirements on diverse computation tasks due to distinct
+
+task characteristics. Specifically, the task generated by MD i in time slot t is characterized by Kit = lit, µti, it, where lit is the task size, µti is the computation intensity (in cycles/bit), and it is the deadline of the task.
+
+3.2 Communication Model
+
+By adopting the widely used orthogonal frequency division
+
+multiple access (OFDMA) [35], the instantaneous uplink
+
+data rate between MD i  I and MEC server j  {b}  U
+
+can be given as:
+
+rit,j = Bi,j log2
+
+1 + Pitgit,j N0
+
+,
+
+(5)
+
+5
+
+where Bi,j is the subchannel bandwidth between MD i and MEC server j, Pit is the transmit power of MD i in time slot t, N0 is the noise power, and git,j is the instantaneous
+channel power gain between MD i and MEC server j.
+
+Due to the complex nature of the communication en-
+
+vironment in UAV-assisted MEC networks, such as the
+
+movement of MDs and UAVs, and the occasional blockages
+
+caused by obstacles, the channel power gain between MD
+
+i and MEC server j is calculated by incorporating the
+
+commonly used probabilistic LoS channel with the large-
+
+scale and small-scale fadings as [35], [41]:
+
+git,j = Pit,j git,,jL + (1 - Pti,j )git,,jNL,
+
+(6)
+
+where Pti,j denotes the probability of LoS transmission, git,,jx
+
+denotes the channel power gain between MD i and MEC
+
+server j, and x  {L, N} represents LoS or non-line of sight (NLoS) links. Moreover, the details of Pti,j and git,,jx are presented as follows.
+
+3.2.1 LoS Probability
+
+For the MD-MBS link, according to the 3GPP standard [42],
+
+the probability of LoS transmission can be given as follows:
+
+Pti,j = min
+
+d1 dti,j
+
+,
+
+1
+
+1 - e-
+
+dti,j d2
+
++ e , -
+
+dit,j d2
+
+j
+
+= b,
+
+(7)
+
+where dti,j is the instantaneous distance between MD i and
+
+the MBS j. Besides, d1 and d2 are the parameters to fit the
+
+specific scenarios. Furthermore, for the MD-UAV link, an
+
+extensively employed LoS probability is calculated as [43]:
+
+Pti,j =
+
+1 , j  U , (8)
+
+1 + p e1
+
+-p2
+
+180 
+
+arcsin
+
+H dti,u
+
+-p1
+
+where dti,j is the horizontal distance between MD i and
+
+UAV j  U . Moreover, p1 and p2 denote the environment-
+
+dependent parameters.
+
+3.2.2 Channel Power Gain
+
+According to [41], [44], [45], the channel power gain between MD i and MEC server j in time slot t can be uniformly given as git,,jx = |hit,,jx|2(Lit,,jx)-1, where hti,,jx and Lti,,jx denotes the parameters of small-scale fading and large-scale fading, respectively, which are presented in detail as follows.
+First, the small-scale fading for both MD-MBS and MD-UAV communications in time slot t is modeled as a parametric-scalable and good-fitting generalized fading, i.e., Nakagami-m fading [46], which is given as: hit,,jx  f Nak hti,,jx, myx
+
+2 myx myx =
+
+hti,,jx
+
+e ( ) 2mxy -1
+
+ - myx
+
+hti,,jx p
+
+2 
+
+ myx (p)myx
+
+, j  {b, U},
+
+(9)
+
+where p is the average received power, (·) is the Gamma
+
+function, and mxy  {mLT, mTN, mLA, mNA} is the Nakagami-m fading parameters for terrestrial/aerial LoS/NLoS channel.
+
+Furthermore, the large-scale fading for MD-MBS com-
+
+munication in time slot t can be given as:
+
+Lit,,jx =
+
+4dT0 fc 2 c2
+
+dti,j dT0
+
+Tx
+x, j = b,
+
+(10)
+
+where d0T is the reference distance for the communication between MD and terrestrial MEC server, Tx  {TL, TN} is
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+the path loss exponent for LoS/NLoS channel between MD i and the MBS j, and x  {L, N} denotes the standard
+
+deviation of shadowing for LoS/NLoS transmission [44],
+
+which follows the zero-mean Gaussian distributed random variable, i.e., x  f Gua 0, (x)2 .
+
+Besides, the large-scale fading for MD-UAV communica-
+
+tion in time slot t can be given as:
+
+Lit,j =
+
+4d0Afc 2 c2
+
+dti,j d0A
+
+A
+, j  U,
+
+(11)
+
+where d0A is the reference distance for the communication
+
+between MD i and the UAV j, A is the path loss exponent
+
+of MD-UAV communication, and  is the additional attenu-
+
+ation factor due to the NLoS link.
+
+3.3 Computation Model
+Each MD is capable of performing local computing and computation offloading simultaneously, as the communication circuit and computation unit are separate [47]. Both local computing and computation offloading generally incur overheads in terms of delay and energy consumption, which are detailed in the following subsections.
+
+3.3.1 Local Computing Model
+
+The completing delay and energy consumption for local
+
+computing are given as follows. (1) Completion Delay. When task Kit is executed locally
+by MD i, the task completion delay is mainly incurred by
+
+task computation, which can be given as follows:
+
+Dit,i
+
+=
+
+µit fit
+
+,
+
+(12)
+
+where fit is the available computing resources of MD i in
+
+time slot t.
+
+(2) Energy Consumption. Correspondingly, the energy
+
+consumption of MD i to execute task Kit locally is given as:
+
+Eit,i = i(fit)2µit,
+
+(13)
+
+where i  0 denotes the effective capacitance of MD i's
+
+CPU that depends on the CPU chip architecture [48].
+
+3.3.2 Edge Offloading Model
+
+The completing delay and energy consumption for edge
+
+offloading are given as follows. (1) Completion Delay. When task Kit is offloaded to
+MEC server j for remote processing, the task completion
+
+delay mainly consists of transmission delay and computa-
+
+tion delay, i.e.,
+
+Dit,j
+
+=
+
+lit rit,j
+
++
+
+µti fjt,i
+
+,
+
+(14)
+
+where lit/rit,j represents the transmission delay that the task is uploaded from MD i to MEC server j. Furthermore,
+
+µti/fjt,i represents the computation delay at MEC server j, which depends on the computing resources fjt,i allocated by MEC server j in time slot t.
+
+(2) Energy Consumption. The remote execution of task Kit on MEC server j could result in transmission energy
+consumption for the MD, computation energy consumption
+
+for the MEC server, and flight energy consumption for
+
+the UAV. For MD i  I, the energy consumed for task
+
+uploading is as follows:
+
+Eit,j
+
+=
+
+Pitlit rit,j
+
+,
+
+(15)
+
+6
+
+where Pit denotes the transmit power of MD i in time slot t. For MEC server j, the energy consumption for task
+
+execution can be given as:
+
+Ejt,,icomp = j (fjt,i)2µti,
+
+(16)
+
+where j  0 denotes the effective capacitance of terrestrial
+
+MEC server j's CPU.
+
+For aerial MEC server j, energy consumption also occurs
+
+during flight. Specifically, the unit propulsion energy of the
+
+rotary-wing UAV in straight-and-level flight includes the
+
+components of blade profile power, induced power, and
+
+parasite power [49], which can be given as:
+
+
+
+
+
+Ejp
+
+=
+
+1
+
+1
+
++
+
+3 vjt 2 vjtip 2
+
+ + 2
+
+3 +
+
+vjt 4 - 4
+
+vjt 2
+
+2
+
++4
+
+vjt
+
+3,
+
+Parasite power
+
+Blade profile power
+
+Induced power
+
+(17)
+
+where vjtip denotes the tip speed of the rotor blade. More-
+
+over, 1, 2, 3, and 4 are the constants that depend on
+
+the aerodynamic parameters of the UAV. Consequently,
+
+the energy consumption of UAV j to provide computation
+
+service for task Kit can be concluded as:
+
+Ejt,i =
+
+j (fjt,i)2µit, j = b, j (fjt,i)2µit + Ejp, j  U .
+
+(18a) (18b)
+
+Note that the delay and energy consumption of the result
+
+feedback are neglected since the result of a task is generally
+
+much smaller than that of the input [50].
+
+3.4 Utility Model
+
+In this section, we present the QoE of MDs, the revenue of MEC servers, and the utility of the system.
+
+3.4.1 QoE of MDs
+
+The QoE achieved by MD i in time slot t is calculated as
+
+the difference between the satisfaction degree from task
+
+completion and the costs associated with task offloading.
+
+Specifically, the costs consist of the energy consumption
+
+and the fees paid to the MEC server, which depend on the
+
+offloading decision. Moreover, the offloading decision is de-
+
+noted as a binary variable oit,n  {0, 1}, n  N = {0, b}  U , which indicates that task Kit of MD i is processed locally (oti,0 = 1) or offloaded to MEC server j  {b}  U (oit,j = 1) in time slot t. Therefore, the QoE achieved by MD i in time
+
+slot t is calculated as follows:
+
+Uit,n
+
+= wi
+
+log
+
+1 + it - Dit,n log 1 + it
+
+-(1 - wi)
+
+Satisfaction degree Local computing
+
+I(n=0)
+
+Eit,i Eimax
+
++ I(n=j)
+
+Edge offloading
+
+Eit,j Ejmax
+
++
+
+fjt,i ptj,i Gimax
+
+(19) ,
+
+Cost of energy
+
+Cost of energy Cost of payment
+
+i  I, j  {b}  U , n  N ,
+
+where the metrics of satisfaction degree and cost, which
+
+have different units, are normalized and then incorporated
+
+using the weight parameter wi. Specifically, the normalized satisfaction degree, i.e., log 1 + it - Dit,j / log (1 + it), reflects the satisfaction level of MD i in completing task Kit, which is commonly modeled as a logarithmic function
+and extensively used for evaluating the benefit of task
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+processing in mobile computing domains [4]. Additionally, the terms Eit,i/Eimax and Eit,j /Eimax denote the normalized energy consumption of local computing (I(n=0) = 1) and edge offloading (I(n=j) = 1), respectively, where Eimax is the energy constraint of MD i. Besides, ptj,ifjt,i/Gimax represents the normalized payment to MEC server j, where fjt,i is amount of computing resource allocated by MEC server j to MD i, pjt,i is the unit price of computing resource paid by MD i, and Gmi ax is the budget of MD i.
+
+3.4.2 Revenue of MEC Servers
+
+The utility gained by MEC server j in time slot t from
+
+executing task Kit is calculated as the difference between the reward received from MD i and the cost of energy
+
+consumption, i.e.,
+
+Ujt,i = wj
+
+fjt,i pjt,i fjmaxpmj ax
+
+-(1 - wj)
+
+Ejt,i Ejmax
+
+, i  I, j  {b}  U.
+
+Reward from MD
+
+Energy cost
+
+(20)
+
+Similar to Eq. (19), the metrics of reward and cost are nor-
+
+malized and then incorporated using the weight parameter wj . Specifically, ptj,ifjt,i/(fjmaxpjmax) denotes the normalized reward of MEC j received by providing computational services to MD i, where pjmax is the maximum price for the computing resource of MEC server j. Furthermore, Ejt,i/Ejmax represents the normalized cost of energy consumption of MEC server j with Ejmax being its maximum
+tolerable energy consumption.
+
+3.4.3 Utility of System
+
+The utility of the system is defined to evaluate the overall
+
+system performance, which is calculated by summing the
+
+QoE of MDs and the revenue of MEC servers in each time
+
+slot. Specifically, combining Eqs. (19) and (20), the utility of
+
+system can be calculated as:
+
+Ut =
+
+itoti,nUit,n +
+
+itoit,j Ujt,i
+
+iI nN
+
+j{b,U } iI
+
+The total utility of MDs The total utility of MEC servers
+
+=
+
+itoti,n Uit,n + Unt,i , i  I, j  {b}  U , n  N .
+
+iI nN
+
+(21)
+
+7
+
+oti,j fjt,i  fjmax, j  {b}  U , t  T ,
+
+(22f)
+
+iI
+
+oit,j  ncjore, j  {b}  U , t  T ,
+
+(22g)
+
+iI
+
+oit,j ctj,ifjt,i  Gmi ax, i  I, j  {b}  U , t  T , (22h)
+
+(1)  (4).
+
+(22i)
+
+Constraints (22b) and (22c) indicate that the offloading strategy for each task is binary. Constraint (22d) means that each MD generates at most one task in each time slot. Constraint (22e) ensures that the delay of completing the task should not exceed the deadline. Constraints (22f) and (22g) constrain the computing resources and the number of CPU cores, respectively, for MEC server. Moreover, Constraint (22h) guarantees that the price paid by each MD to the MEC server should not exceed its budget. In addition, Constraint (22i) limits the mobility of MDs and UAVs.
+
+Theorem 1. Problem P is a non-convex and NP-hard MINLP.
+
+Proof. Problem P involves binary variables (i.e., computation offloading strategy O), continuous variables (i.e., computing resource allocation F and trajectory control Q), and non-linear objective function. Consequently, problem P is a MINLP, which is also non-convex and NP hard [51]. 
+
+4 ALGORITHM
+To solve problem P, we propose TJCCT, which is comprised of two-timescale optimization methods. Specifically, in the short timescale, a price-incentive trading model is constructed based on the bargaining mechanism to facilitate the negotiation between the MDs and the MEC servers for the on-demand computing resource allocation and pricing. Furthermore, to deal with the heterogeneity between the computation tasks of MDs and MEC servers, a many-toone matching is established to stimulate the end-edge collaboration for mutual-satisfactory computation offloading. In the long timescale, based on the optimal strategies of computing resource allocation and computation offloading, UAV trajectory is optimized by using convex optimization.
+
+3.5 Problem Formulation
+
+The optimization problem is formulated to maximize the
+
+system utility over T slots by jointly determining the
+
+computation offloading strategy O = {oti,n}iI,nN ,tT ,
+
+computing resource allocation and pricing strategy F =
+
+{fjt,i, ptj,i}iI,j{b}U,tT , and UAV trajectory Q = {qut }jU,tT . Therefore, the problem can be formulated as:
+
+T
+
+P : max U t,
+O,F,Q t=1
+
+(22a)
+
+s.t. oit,n  {0, 1}, i  I, n  N , t  T ,
+
+(22b)
+
+oit,n  1, i  I, t  T ,
+
+(22c)
+
+nN
+
+it = {0, 1}, i  I, t  T ,
+
+(22d)
+
+oit,nDit,n  it, i  I, j  {b}  U , n  N , t  T ,
+
+(22e)
+
+4.1 Short Timescale: Computing Resource Allocation and Computation Offloading
+In each time slot, the strategies of computing resource allocation and computation offloading are decided.
+4.1.1 Computing Resource Allocation
+In this subsection, given that the task Kit generated by MD i will be processed by MEC server j at time t, the optimal computing resource allocation is presented. Specifically, the metric of the unit price for computing resources is introduced to capture the task processing costs of MEC servers that should be covered by MDs. This can be viewed as a market where MDs purchase computing resources from suitable MEC servers for task processing. However, the price of the computation resource affects the utilities of both MDs and MEC servers. Therefore, to optimize the utilities of MDs and MEC servers, an appropriate pricing strategy
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+needs to be incorporated with the resource allocation strat-
+egy, taking into account the requirements of MDs and the
+computing capabilities of the MEC servers.
+According to the analysis above, we construct a price-
+incentive trading model for MDs and MEC servers. Specifi-
+cally, the negotiation is modeled as a Rubinstein bargaining model [52] where the MD i with an offloading request for its task Kit acts as the buyer and the target MEC server j acts as a seller. The objective of the negotiation is to determine the optimal strategy of computing resource allocation fjt,i with satisfied price incentive pjt,i during time slot , which are detailed below.
+(1) Optimal Computing Resource Allocation. Given any price of the computing resource ptj,i, the optimal computing resource allocation fjt,i can be determined as Theorem 2.
+
+Theorem 2. The optimal computing resources that MD i expects
+
+to request from the target MEC server j to offload task Kit is
+
+determined as follows:
+
+fjt,i
+
+=
+
+(pjt,i
+
+)
+
+-
+
+2wiGimax log (1 + it)
+
+pjt,i
+
+(1
+
+-
+
+wi)
+
+.
+
+(23)
+
+Proof. For MEC server j, the second-order derivative of Uit,j with respect to fjt,i can be calculated as:
+
+ 2 Uit,j  2 fjt,i
+
+=
+
+µi,twi (fjt,i)4
+
+2fjt,i log (1
+
+li,t/rit,j
+
+-
+
+i,t
+
++
+
+µi,t fjt,i
+
++ i,t) li,t/rit,j - i,t
+
+- +
+
+1 - µi,t - 1 µi,t
+fjt,i
+
+2
+
+.
+
+(24)
+
+Since it can be
+
+µi,t fjt,i
+
+< 1 + i,t
+
+inferred from Eq. (19)
+
+-
+
+, µi,t
+2fjt,i
+
+we
+
+can
+
+derive
+
+that
+
+li,t rit,j
+
+<1
+
+the following
+
++ i,t - inequa-
+
+tions, i.e.,
+
+li,t rit,j
+
+< 1 + + - µi,t
+i,t 2fjt,i
+
+µi,t fjt,i
+
+
+
+- + -1 < li,t
+rit,j
+
+µi,t i,t fjt,i
+
+µi,t 2fjt,i
+
+ 2fjt,i
+
+-  + - 1 li,t
+rit,j
+
+µi,t
+
+i,t
+
+fjt,i
+
+- µi,t < 0. Therefore,
+
+it is obvious that Uit,j is concave with respect to fjt,i since
+
+ 2 Uit,j  2 fjt,i
+
+< 0, which implies that the maximal value of Uit,j
+
+is
+
+existed. Consequently, the optimal amount of computational
+
+resources required by MD i can be determined by applying
+
+the first-order optimality condition, as follows:
+
+
+
+-2wiGm i ax
+
+( ) , t f = j,i
+
+ (pjt,i)+lo2gw1i+Gimitaxptj,i(1-wi)
+
+( ) ,  (ptj,i)-log 1+it ptj,i(1-wi)
+
+where
+
+(25)
+
+(ptj,i) =
+
+pjt,i log(1 + it)(1 - wi) µti
+
+(26)
+
+ptj,iµit log(1 + it)(1 - wi) + 4Gmi axwi 1 + it - lit/rit,j .
+
+From Eq. (26), it is clear
+
+that
+
+-2wi Gimax
+( ) (pjt,i)+log 1+it pjt,i(1-wi)
+
+<
+
+0
+
+since (ptj,i) > 0, wi > 0, ptj,i > 0, and log(1 + it) > 0.
+
+Therefore, the optimal amount of computation resource
+
+desired by MD i can be finally determined as fjt,i =
+
+. 2wi Gimax
+-log(1+i,t )pjt,i (1-wi )
+
+
+
+(2) Satisfied Computing Resource Pricing. Given any allocation of the computing resource fjt,i for task Kit, the satisfied price of computing resource ptj,i can be determined by the following steps.
+First, the upper bound and lower bound of the unit price
+of computing resource can be derived as Lemma 1.
+
+8
+
+Lemma 1. To achieve a successful negotiation between MD i and
+
+MEC server j regarding the resource allocation and pricing of task
+
+Kit, the unit price of the computing resource should be bounded
+
+by
+
+pt
+j,i
+
+
+
+ptj,i
+
+
+
+ptj,i,
+
+where
+
+pt
+j,i
+
+=
+
+(1
+
+-
+
+wj )Ejt,ipjmax wj Ejmaxfjt,i
+
+fjmax
+
+,
+
+(27)
+
+ptj,i
+
+=
+
+ 
+
+wi log 1 + it - Dit,j (1 - wi) log (1 + it)
+
+
+
+-
+
+Pitlit rit,j it 
+
+Gmi ax fjt,i
+
+.
+
+(28)
+
+Proof. The price incentive should ensure that Uit,j > 0 and
+
+Ujt,i > 0. Otherwise, the negotiation between MD i and
+
+MEC
+
+server
+
+j
+
+would
+
+be
+
+failed.
+
+Therefore,
+
+pt
+j,i
+
+and
+
+ptj,i
+
+can
+
+be obtained by substituting Eqs. (19) and (20) into the above
+
+inequations.
+
+
+
+Second, we present the optimal negotiation between
+
+an MD and an MEC server by employing the Rubinstein
+
+bargaining model. According to Lemma 1, the surplus of the computing resource price can be obtained as jt,i = ptj,i-pjt,i. Therefore, the negotiation between MD i and MEC server j on the price of the computation resources can be modeled as the bargaining over the surplus jt,i. Specifically,
+MD i and MEC server j take turns making offers about
+
+how to divide the surplus. Apparently, both the seller and
+
+buyer are subject to impatience and prefer a quick consensus
+
+on the division to a postponed trading delay because the
+
+utilities are discounted in the future. Consequently, the
+
+discount factors [52] of MD i and MEC server j are used
+
+to evaluate the patience with the negotiation delay, which
+
+are given as:
+
+it
+
+=
+
+1
+
+-
+
+lit rit,j it
+
+,
+
+(29a)
+
+jt
+
+=
+
+1
+
+-
+
+µit fjt,iit
+
+.
+
+(29b)
+
+Eqs. (29a) and (29b) indicates that MD i could be impatient with the long delay of task uploading, resulting in lower ti. Moreover, MEC server j could be impatient with the long delay of task execution, resulting in the lower value of tj.
+In addition, trading parties could be more patient with the longer tolerable delay of the task it, leading to higher ti and tj .
+Third, to derive the satisfied partition of the surplus jt,i,
+we introduce the concepts of Nash equilibrium (NE) and
+
+subgame perfect Nash equilibrium (SPE) [52] as follows.
+
+Definition 1. NE. Any partition  can be an NE outcome of the
+negotiation if it satisfies the following conditions: MD i (or MEC
+server j) always proposes  = (i, j) and only accepts the offers  where i > i (or j > j ).
+
+Definition 2. SPE. The partition  = i, j is an SPE if  induces an NE each time a new offer is made and rejected.
+
+According to Definitions 1 and 2, the satisfied partition of the surplus jt,i can be obtained by Lemma 2.
+Lemma 2. The bargaining model has a unique SPE. In the period T b when MD i makes a proposal, the satisfied partitions of the
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+
+surplus jt,i for the computing resource price are given as:
+
+(1 - ti)
+
+1-
+
+itjt
+
+
+
+Tb 2
+
+
+
+it,i = it -
+
+1 - ittj
+
+,
+
+(30a)
+
+(1 - ti)
+
+2 - titj -
+
+ti tj
+
+
+
+Tb 2
+
+
+
+jt,i =
+
+1 - titj
+
+,
+
+(30b)
+
+In the period T b when MEC server j makes a proposal, the
+
+satisfied partitions are given as:
+
+1 - jt
+
+1-
+
+ittj
+
+
+
+Tb 2
+
+
+
+it,j =
+
+1 - ittj
+
+,
+
+(31a)
+
+jt,j
+
+=
+
+jt
+
+(1 - it) - 1 - jt 1 - itjt
+
+itjt
+
+
+
+Tb 2
+
+
+
+.
+
+(31b)
+
+Proof. Suppose that MD i makes a proposal in period T b 
+
+{t, t + t} where the negotiation ends with a satisfactory
+
+outcome of partition. Therefore, it can be inferred that if MD i proposes (1, 0) in period T b, MEC server j proposes (it, 1 - ti) in period T b - 1, etc. As a result, if T b is even,
+the partition obtained by MD i in the first period can be
+
+calculated by: it,j = ti 1 - tj 1 - it(. . .) = ti - itjt + (it)2jt
+
+-...+
+
+it
+
+T 2
+
+jt
+
+T 2
+
+-1
+
+=
+
+it
+
+-
+
+1 - ti
+
+T 2
+
+-1
+
+tijt t
+
+t=0
+
+Tb
+(1 - ti) 1 - tijt 2
+
+= ti -
+
+1 - itjt
+
+.
+
+(32)
+
+For the cases that T b is odd and MEC server j makes an
+
+offer, it,j and jt,i can be derived in a similar way.
+
+
+
+Fourth, according to Lemmas 1 and 2, the optimal price
+
+of the computing resource can be derived by Theorem 3.
+
+Theorem 3. The satisfied outcome for the price of the computa-
+
+tion resource pjt,i can be obtained as:
+
+ptj,i = ptj,i - jt,iit,i,
+
+(33a)
+
+ptj,i = ptj,i - jt,iit,j ,
+
+(33b)
+
+where Eq. (33a) indicates the optimal price of the computing
+
+resource obtained in the period when MD i makes an offer, and
+
+Eq. (33b) indicates the optimal price of the computing resource
+
+obtained in the period when MEC server j makes an offer.
+
+Proof. According to Theorem 2, the optimal partitions of the
+
+price difference obtained by MD i and MEC server j in the
+
+period when MD i makes an offer can be calculated as:
+
+it,i = jt,iit,i,
+
+(34a)
+
+jt,i = jt,ijt,i.
+
+(34b)
+
+Therefore, in the period when MD i makes a proposal, MD
+
+i decides its optimal bidding price as pit,bid = pjt,i - it,i =
+
+ptj,i - jt,iit,i. Similarly, MEC server j decides its optimal
+
+asking
+
+price
+
+as
+
+ptj,ask
+
+=
+
+pt
+j,i
+
++
+
+jt,i
+
+=
+
+pt
+j,i
+
++
+
+jt,ijt,i.
+
+It
+
+can
+
+be
+
+easily
+
+proved
+
+that
+
+pti,bid
+
+=
+
+pjt,ask
+
+since
+
+jt,i
+
+=
+
+pjt,i
+
+-
+
+pt
+j,i
+
+and
+
+jt,i = 1 - it,i. Therefore, a deal on the price of the allocated
+
+9
+resource can be obtained as pjt,i = pit,bid = ptj,ask. Combining it,i into the formula of pti,bid, ptj,i can be obtained as Eq. (33a). The proof of Eq. (33b) can be obtained similarly. 
+
+(3) Optimal Computing Resource Allocation with Price Incentive. The optimal strategies of computing resource allocation with price incentive can be concluded from Theorems 2 and 3, as given in Corollary 1.
+
+Corollary 1. A trading consensus can be reached on the amount
+
+and unit price of the allocated computing resources:
+
+fjt,i
+
+=
+
+2wiGmi ax (ptj,i) - log (1 + it) pjt,i
+
+(1
+
+-
+
+, wi)
+
+pjt,i =
+
+ptj,i - pjt,iit,i, pjt,i - ptj,iit,j .
+
+(35)
+(36a) (36b)
+
+The trading contract between MD i and MEC server j is presented in Definition 3. According to Corollary 1 and Definition 3, an alternative algorithm that iteratively optimizes the strategies of computing resource allocation and pricing is described in Algorithm 1. Specifically, the optimal strategy of computing resource allocation is initially set as the available resources of MEC server j (line 2). Furthermore, in each iteration, MD i and MEC server j negotiate the satisfied price of the computing resource based on the trading contract (line 6). Then, they update the optimal strategy of computing resource allocation (line 7). The steps above are iterated until a consensus is reached.
+
+Definition 3. Trading contract. The trading amount and price
+are determined based on the following terms.
+· If Uit,j > 0, Ujt,i > 0, a consensus is reached on the trading amount and price based on Eqs. (35) and (36).
+· If Uit,j > 0, Ujt,i < 0, MD i makes an offer of the unit price of computing resources based on Eq. (36a).
+· If Uit,j < 0, Ujt,i > 0, MEC server j makes an offer of the unit price of computing resources based on Eq. (36b).
+· If Uit,j < 0, Ujt,i < 0, either MD i or MEC server j can make an offer.
+
+Algorithm 1: Computing Resource Allocation.
+Input: Task Kit of MD i and MEC server j Output: The optimal resource allocation with
+satisfied price (fjt,i, ptj,i) in time slot t 1 Initialization: Uit,j = 0; Ujt,i = 0;  = 0; max = 100; 2 Set the optimal resource allocation as fjt,i = fjavl; 3 while   max do 4 Update pjt,i based on Eq. (36); 5 Calculate Uit,j , Ujt,i based on Eqs. (19) and (20); 6 Perform the trading contract based on Definition
+3; 7 Update fjt,i based on Eq. (35); 8  =  + 1; 9 return (fjt,i, ptj,i);
+
+4.1.2 Computation Offloading
+Matching mechanism offers an efficient tool to construct the mutual-beneficial relationship between two sets of entities with heterogeneous preferences. This motivates us
+
+JOURNAL OF LATEX CLASS FILES, VOL. , NO. ,
+to construct the matching between the computation tasks of MDs and MEC servers to alleviate the demand-supply heterogeneity. By doing so, the MDs and MEC servers can achieve mutual-beneficial computation offloading results of satisfied QoE and high computing resource utilization. Denote the set of computation tasks that have not begun execution in time slot t as Krteq = {Kit|i  I, t  T }, where t is the generation time of the computation task. Then the offloading strategy for these computation tasks in each time slot is decided using a many-to-one matching mechanism, which is defined by Definition 4.
+Definition 4. The current matching is defined as a triplet of (Mt, Lt, t):
+· Mt = Krteq, {b}  U consists of the tasks of MDs and the MEC servers.
+· Lt = LKt it , Ltj consists of the preference lists of the tasks and MEC servers. Each task Kit  Krteq has a descending ordered preferences over the MEC servers, i.e., LKt it = {j|j  {b}  U , j Kit j}, where Kit is the preference of task Ki towards the servers. Moreover, each MEC server j has a descending ordered preference list over the tasks, i.e., Ltj = {Kit  Krteq, Kit j Kit}.
+· t  Krteq × {b}  U denotes the matching between the tasks and MEC servers. Each task Kit  Krteq can be matched with at most one MEC server, i.e., Kt it  {b}  U , while each MEC server j can be matched with multiple tasks, i.e., tj  Krteq.
+
+10
+The main steps of the matching process are presented in Algorithm 2, and the details are further described as follows.
+Preference List Construction. For each task Kit  Krteq and MEC server j, the preference lists are constructed based on the following steps: i) predict the optimal computing resource allocation and pricing by calling Algorithm 1 (line 4), ii) calculate the preference value for each task on MEC servers and the preference value for each MEC server on tasks (line 5), iii) construct the preference list for each task and MEC server by ranking the preference values in descending order (lines 6 and 7).
+Matching Construction. The matching process is implemented according to the following steps: i) for each computation task Kit  Krtej, select the most preferred MEC server j and add it to the matching list temporarily (line 10), ii) if the computation task prefers MEC server j, add the computation task to the matching list of j temporarily (lines 11 and 12), iii) for each MEC server that receives new requests, update the matching list by remaining the top­Nj most preferred computation tasks and removing the less preferred computation tasks (lines 13 to 14) to guarantee that the current number of tasks and the allocated computing resources should not exceed the number of idle CPU cores Njt,idl and the available computing resources fjt,avl of the MEC server, respectively, iv) add the deleted computation tasks into the rejected set, v) update the preference list and matching list for the deleted computation tasks (lines 16 and 17). Note that the steps above are repeated until all computation tasks have been matched with an MEC server, or the unmatched computation tasks have been rejected by all MEC servers.
+
+Algorithm 2: Computation Offloading.
+
+Input: Tasks Krteq = {Kit|i  I, t  T }, and MEC
+
+servers {b}  U Output: The optimal matching list t , offloading
+
+Ot , and computing resource allocation Ft 1 Initialization: Krtej = Krteq, t = ; 2 for Kit  Krteq do
+
+3 for j  {b, U } do
+
+4
+
+Call Algorithm 1 to obtain fjt,i, ptj,i ;
+
+5 6 7
+
+CVVKjat,Klitc,ju>l>aVteVj,KVKt itKt,jit,j=KjUitj,jKK, itV,jj,KL, itjtL==KitU{=Kjt,i,{;Kj,j}
+
+}; ;
+
+8 while There exists Kit  Krtej: LKt it =  && Kit / Ljt
+
+do
+
+9
+
+for Kit  Krtej do
+
+10 11 12
+
+iftKVitKt=ittj,j=>Kt it0jtthje,Knjit = LKt it [1] ;
+
+13 for j  {b, U } that receives new requests do
+
+14
+
+|jt |  Nj  Njidl , Kit(j) fjt,i  fjt,avl;
+
+15
+
+tj = jt \ Djt , Krtej = Krtej  Djt ;
+
+16
+
+for Kit  Djt do
+
+17 18
+
+reFtutrn={tfLj=t,tKi ,itp=tjt,,iOL|tKjtit==\ {{jKto}tiit,,,jK|jtKit=it=KKtrteitqKt,}itK; \it
+
+{j};  Krteq},
+
+4.2 Long Timescale: UAV Trajectory Control
+
+In each time epoch, the UAV trajectory is optimized by
+
+applying the convex approximation method. Specifically,
+
+the movement of UAVs in the next time epoch is optimized
+
+based on the optimized strategies of computing resource allocation Ft and computation offloading Ot . Therefore, fixing Ft and Ot , while eliminating the unrelated terms in
+
+the objective function and constraints, the problem of UAV
+
+trajectory optimization can be given as:
+
+Pt
+
+:
+
+max U t
+Qt
+
+=
+
+max
+Qt
+
+iI
+
+jU
+
+itoit,j
+
+Uit,j + Ujt,i
+
+(37a)
+
+(4a)  (4f),
+
+where Qt denotes the positions of UAVs in the next time epoch t = (t/ + 1) .
+
+Lemma 3. Problem Pt can be approximately converted into:
+
+Pt :
+
+max
+Qt
+
+it oit,j
+iI jU
+
+0 log
+
+1+
+
+it -
+
+lit rit,j
+
+- 1
+
+-
+
+2
+
+lit rit,j
+
+- 3Ejp
+
+(38a)
+
+(4a)  (4e). where 0 = wi/(1 + it), 1 = µit/fjt,i, 2 = (1 - wi)Pit/Eimax, 3 = (1 - wj )/Ejmax, and rit,j =
+
+Bit,j log2
+
+Pit g¯it,j
+1 +   N0 qjt -qti 2+H2 A/2
+
+.
+
+

@@ -1,0 +1,1594 @@
+
+Improve the Training Efficiency of DRL for Wireless Communication Resource Allocation: The Role of Generative Diffusion Models
+
+
+Xinren Zhang,
+Jiadong Yu,
+
+
+X. Zhang and J. Yu are with the Internet of Things Thrust at the Hong Kong University of Science and Technology (Guangzhou).
+
+
+
+Abstract
+Dynamic resource allocation in mobile wireless networks involves complex, time-varying optimization problems, motivating the adoption of deep reinforcement learning (DRL). However, most existing works rely on pre-trained policies, overlooking dynamic environmental changes that rapidly invalidate the policies. Periodic retraining becomes inevitable but incurs prohibitive computational costs and energy consumption—critical concerns for resource-constrained wireless systems. We identify three root causes of inefficient retraining: high-dimensional state spaces, suboptimal action spaces exploration-exploitation trade-offs, and reward design limitations.
+To overcome these limitations, we propose Diffusion-based Deep Reinforcement Learning (D2RL), which leverages generative diffusion models (GDMs) to holistically enhance all three DRL components. GDMs’ iterative refinement process and distribution modelling enable (1) the generation of diverse state samples to improve environmental understanding, (2) balanced action space exploration to escape local optima, and (3) the design of discriminative reward functions that better evaluate action quality. Our framework operates in two modes: Mode I leverages GDMs to explore reward spaces and design discriminative reward functions that rigorously evaluate action quality, while Mode II synthesizes diverse state samples to enhance environmental understanding and generalization. Extensive experiments demonstrate that D2RL achieves faster convergence and reduced computational costs over conventional DRL methods for resource allocation in wireless communications while maintaining competitive policy performance. This work underscores the transformative potential of GDMs in overcoming fundamental DRL training bottlenecks for wireless networks, paving the way for practical, real-time deployments.
+
+
+
+Index Terms: Deep Reinforcement Learning, Generative Diffusion Models, Mobile Wireless Communications, Resource Allocation, Training Efficiency 
+
+
+
+I Introduction
+
+
+Mobile wireless networks face challenges in resource allocation due to fluctuating channel conditions and multi-objective optimization [1, 2]. Deep reinforcement learning (DRL) has emerged as a promising solution for these complex resource allocation problems, offering the ability to learn optimal policies through interaction with the environment without requiring explicit mathematical modeling of system dynamics[3, 4, 5].
+
+
+While pre-trained DRL models achieve static optimization[6, 7], their inefficiency in dynamic environments necessitates periodic retraining [8]. In such cases, training efficiency, characterized by both the convergence speed toward optimal policies and the computational resources consumed during the training process, becomes crucial[9]. The retraining process consumes substantial computational resources, and inefficient training can lead to excessive energy consumption and resource utilization. Therefore, when considering the application of DRL in mobile wireless environments, training efficiency is an essential factor that requires careful consideration.
+
+
+Three key elements of DRL - state space, action space, and reward - fundamentally influence the training efficiency. Each of these elements presents unique challenges that can significantly impact the gradient updates and, consequently, the training efficiency. State data must capture relevant environmental information while remaining computationally manageable, yet comprehensive state data acquisition is often resource-intensive and time-consuming [10, 11]. Limited or poor-quality state data can lead to incomplete environmental understanding and extended convergence times [12]. Moreover, insufficient state diversity can induce overfitting, where agents become overly specialized in specific scenarios, compromising their generalization capabilities in real-world deployments[13]. Action selection requires balancing exploration and exploitation, where insufficient exploration can result in convergence to suboptimal policies[14]. Reward design must provide meaningful feedback for learning, but traditional simple reward functions[15, 16] often prove inadequate for complex wireless communication scenarios with multiple competing objectives. While the integration of expert knowledge into reward design represents a potential solution[17], offering more informed feedback and helping avoid suboptimal strategies, it introduces its own limitations. Excessive reliance on expert-guided rewards can constrain the agent’s exploration space, potentially leading to convergence toward local optima rather than discovering innovative or globally optimal solutions.
+
+
+Recent advances in generative diffusion models (GDMs) [18] have demonstrated remarkable capabilities in generating diverse and high-quality samples through denoising processes. This aligns well with the key requirements in addressing DRL challenges: the need for diverse state representation, effective action space exploration, and comprehensive reward signals. The iterative refinement process in GDMs naturally supports exploration by gradually transforming noise into meaningful samples, while their ability to model complex distributions enables the generation of diverse and representative samples. Leveraging these properties, [17] has successfully applied GDMs to enhance action space exploration in DRL, demonstrating improved training efficiency and convergence. This success suggests promising potential for extending GDM applications to address the challenges in state representation and reward design as well.
+
+
+To address the challenges of DRL training efficiency in full-duplex (FD) wireless communications, this paper presents a systematic investigation into the integration of GDMs with the three fundamental elements of DRL. While previous research has primarily focused on action space exploration using GDMs, we propose a more comprehensive framework called Diffusion-based Deep Reinforcement Learning (D2RL) that leverages multiple GDM operational modes to address the complex challenge of resource allocation in dynamic, multi-objective environments. By facilitating thorough exploration across state, action, and reward spaces, D2RL significantly enhances training efficiency, achieving faster convergence with reduced computational overhead. These improvements mark a substantial step toward making DRL more viable for practical deployment in real-world wireless communication systems.
+
+
+
+I-A Contributions
+
+
+Our contributions are summarized as follows:
+
+
+•
+
+We present a generalized mobile wireless communication system model. To address the resource allocation problem of the model using DRL, we analyze the challenges associated with three key elements of DRL in mobile wireless communications: state space, action space, and reward space. Through the examination of gradient updates during the learning process, we provide theoretical analysis that quantifies the impact of these three spaces on DRL training efficiency.
+
+
+
+•
+
+We propose D2RL framework utilizing GDMs in three key elements: generating diverse state samples for improved environmental understanding, exploring action spaces for better policy learning, and enhancing reward function design for more informative feedback. We conduct a systematic study of their individual and collaborative effects on training efficiency.
+
+
+
+•
+
+We propose two distinct modes of GDMs for D2RL framework based on the availability of original dataset. In Mode I, GDMs are employed to explore reward spaces, creating more informative and discriminative reward functions that better capture the quality of agent-generated actions. In Mode II, GDMs generate diverse and representative state samples to expand the agent’s environmental understanding and improve generalization to unseen situations.
+
+
+
+•
+
+We conduct extensive experiments in an FD wireless communication system. The results demonstrate improvements in both training efficiency and final performance metrics. Specifically, our approach achieves faster convergence and requires fewer computational resources compared to conventional DRL methods, while maintaining the quality of learned policies.
+
+
+
+
+
+
+
+I-B Related Works
+
+
+
+I-B1 Deep Reinforcement Learning for Resource Allocation in Wireless Communications
+
+Resource allocation in wireless networks has attracted significant research attention, particularly through the application of DRL approaches. Several works have proposed innovative frameworks to address various challenges in different network scenarios. In heterogeneous cellular networks, [19] proposed a distributed multi-agent deep Q-network algorithm for joint mode selection and channel allocation in D2D-enabled networks, maximizing system sum-rate through partial information sharing. For UAV-assisted networks, [20] combined deep Q-learning with difference of convex algorithm (DCA) to jointly optimize UAV positions and resource allocation. In addition, [21] developed a hybrid hierarchical DRL framework integrating double deep Q networks (D3QN) and soft Actor-Critic (SAC) for secure transmission in intelligent reflective surface (IRS)-assisted networks. Moreover,
+several frameworks have been proposed for energy-efficient resource allocation. [22] introduced three complementary approaches - the discrete DRL-based resource allocation (DDRA), continuous DRL-based resource allocation (CDRA), and joint DRL and optimization resource allocation (DORA) - incorporating event-triggered learning to balance complexity and performance. In semantic communications, [23] developed a deep deterministic policy gradient (DDPG)-based framework optimizing bandwidth and semantic compression ratio. For ultra-reliable and low-latency communications (URLLC) systems, [24] proposed a multi-agent (MA) DRL framework combining MA dueling double deep Q network (MA3DQN), MA double deep Q network (MA2DQN), and MA deep Q network (MADQN) algorithms to ensure ultra-reliable and low-latency requirements while optimizing resource allocation.
+
+
+While these existing approaches have made significant contributions to resource allocation in wireless networks, they primarily focus on achieving optimal performance metrics without explicitly considering the training efficiency. This paper aims to explore algorithms that can further accelerate the training process of utilizing DRL to solve resource allocation problems in wireless communications. Despite the fact that previous research has achieved satisfactory training results, the question remains whether the learning speed can be further expedited to save computational resources and improve efficiency. To address this issue, this paper delves into three critical components of DRL: action, state, and reward spaces. Through the exploration of these spaces, we seek to uncover previously overlooked information that could potentially speed up the training process.
+
+
+
+
+I-B2 Generative Diffusion Models for Deep Reinforcement Learning
+
+Diffusion models have emerged as a powerful paradigm in various domains since their introduction by [18], who proposed a deep unsupervised learning framework that learns to reverse a Markov diffusion process for efficient learning and sampling. Building upon this foundation, several works have extended diffusion models to decision-making and planning tasks. For instance, [25] introduced Diffuser, a diffusion probabilistic model for trajectory optimization that enables flexible long-horizon behavior synthesis through iterative denoising. In the context of vehicular metaverses, [26] developed a hybrid-generative diffusion model that uniquely handles both discrete and continuous actions for vehicle twin migration, demonstrating superior convergence and efficiency. Recent work has further expanded the application of diffusion models to edge computing and AI-generated content. [27] proposed deep diffusion soft actor-critic (D2SAC), integrating diffusion-based AI-Generated Optimal Decision (AGOD) algorithm with soft actor-critic architecture for edge-enabled artificial intelligence-generated content (AIGC) service provider selection. Most recently, [28] introduced DiffusionGPT, a unified framework that leverages large language models to integrate diverse prompt types with domain-expert models through a Tree-of-Thought structure, advancing the capabilities of text-to-image generation systems.
+
+
+While these existing works have demonstrated the effectiveness of diffusion models across various domains, they have primarily focused on applying GDMs to specific aspects of decision-making tasks rather than exploring their potential for comprehensive DRL enhancement. This paper aims to accelerate the DRL training process in mobile wireless communication through GDM applications. Since prior research has demonstrated powerful exploration capabilities of GDMs in expanding action spaces within DRL frameworks, our work extends their application to two additional critical components of the DRL paradigm. We leverage GDMs to design more sophisticated reward functions capable of providing higher-quality feedback for action evaluation. Moreover, we utilize GDMs to augment existing state space datasets, thereby reducing the resource requirements for environmental interactions. In addition, we compared the impact of collaboratively using GDM on the learning speed of DRL in exploring these three spaces.
+
+
+The remainder of this paper is organized as follows: Section II presents the preliminaries, while Section III formulates the system model and problem.
+In Section 1, we propose our framework: D2RL, designed to address the problem.
+The performance evaluation of D2RL is presented in Section V, discussing the results and insights gained from the experiments. Finally, Section VI concludes our contribution and findings.
+
+
+
+
+
+
+II Preliminaries
+
+
+In this section, we introduce the foundational concepts and relevant background, focusing on DRL in resource allocation for wireless communication systems and an overview of GDMs.
+
+
+
+II-A Deep Reinforcement Learning in Resource Allocation for Wireless Communication
+
+
+In DRL, the decision-making process of an agent is formalized as a Markov Decision Process (MDP), defined by the tuple (𝒮,𝒜,R,γ)𝒮𝒜𝑅𝛾(\mathcal{S},\mathcal{A},{R},\gamma)( caligraphic_S , caligraphic_A , italic_R , italic_γ ), where 𝒮𝒮\mathcal{S}caligraphic_S is the observation space, 𝒜𝒜\mathcal{A}caligraphic_A is the action space, R:𝒮×𝒜→ℝ:𝑅→𝒮𝒜ℝ{R}:\ \mathcal{S}\times\mathcal{A}\rightarrow\mathbb{R}italic_R : caligraphic_S × caligraphic_A → blackboard_R is the reward function, and γ∈(0,1]𝛾01\gamma\in(0,1]italic_γ ∈ ( 0 , 1 ] is the discount factor[29]. At each time step t𝑡titalic_t, the agent observes a state St∈𝒮subscript𝑆𝑡𝒮S_{t}\in\mathcal{S}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ∈ caligraphic_S, then selects an action At∈𝒜subscript𝐴𝑡𝒜A_{t}\in\mathcal{A}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ∈ caligraphic_A, and receives a reward Rt=R⁢(St,At)subscript𝑅𝑡𝑅subscript𝑆𝑡subscript𝐴𝑡R_{t}=R(S_{t},A_{t})italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT = italic_R ( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ). The goal of the agent is to learn a policy that maximizes 𝔼⁢[∑t=0∞γt⁢Rt]𝔼delimited-[]superscriptsubscript𝑡0superscript𝛾𝑡subscript𝑅𝑡\mathbb{E}\Big{[}\sum_{t=0}^{\infty}\gamma^{t}R_{t}\Big{]}blackboard_E [ ∑ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT ∞ end_POSTSUPERSCRIPT italic_γ start_POSTSUPERSCRIPT italic_t end_POSTSUPERSCRIPT italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ].
+
+
+In the context of wireless communication resource allocation, DRL has emerged as a promising solution to address the complexity and dynamics of wireless networks. The state space 𝒮𝒮\mathcal{S}caligraphic_S typically encompasses various network parameters and channel conditions, including Channel State Information (CSI)[30], Queue State Information (QSI)[31], user demands[32], and buffer status[33]. These state variables provide a comprehensive representation of the network environment, enabling the DRL agent to make informed decisions.
+The action space 𝒜𝒜\mathcal{A}caligraphic_A in wireless resource allocation generally consists of resource allocation decisions, such as power allocation levels, subcarrier assignments, bandwidth allocation, and scheduling priorities. These actions directly influence the network performance and user experience. For instance, in a multi-user MIMO system, the action space might include beamforming vectors and user selection decisions[34], while in an OFDMA system, it could comprise subcarrier-user assignments and power allocation across different subcarriers[35].
+The reward function R𝑅Ritalic_R is typically designed to reflect the optimization objectives of the wireless network. Common reward metrics include achievable sum rate, energy efficiency, spectrum efficiency, and Quality of Service (QoS) satisfaction levels[19]. To balance multiple objectives, the reward function can be formulated as a weighted sum, which uses weight factors to flexibly adjusting the relative importance of different objectives based on the desired trade-offs and priorities in the specific application scenario[36]. This formulation allows the DRL agent to learn resource allocation policies that optimize multiple network performance metrics simultaneously while adhering to various system constraints.
+
+
+
+
+II-B Generative Diffusion Models
+
+
+GDMs operate by iteratively generating and refining samples through diffusion and denoising. Its robust exploratory capabilities enhance training efficiency and stability. We detail it as follows.
+
+
+
+II-B1 Forward Process
+
+The forward diffusion process can be modeled as a Markov chain with P𝑃Pitalic_P steps. Denote X0superscript𝑋0X^{0}italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT as the original data at step-00. At each diffusion step-p𝑝pitalic_p, p∈P𝑝𝑃p\in Pitalic_p ∈ italic_P, Gaussian noise with a variance of βpsubscript𝛽𝑝\beta_{p}italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT is added to Xp−1superscript𝑋𝑝1X^{p-1}italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT, yielding Xpsuperscript𝑋𝑝X^{p}italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT with the distribution q⁢(Xp|Xp−1)𝑞conditionalsuperscript𝑋𝑝superscript𝑋𝑝1q(X^{p}|X^{p-1})italic_q ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT | italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ). This process is expressed as:
+
+
+
+<math alttext="q(X^{p}|X^{p-1})=\mathcal{N}(X^{p};\mu_{p}=\sqrt{1-\beta_{p}}X^{p-1},\Sigma_{p%
+}=\beta_{p}\mathbf{I})," class="ltx_math_unparsed" display="block" id="S2.E1.m1.1">q(Xp|Xp−1)=𝒩(Xp;μp=1−βpXp−1,Σp=βp𝐈),q(X^{p}|X^{p-1})=\mathcal{N}(X^{p};\mu_{p}=\sqrt{1-\beta_{p}}X^{p-1},\Sigma_{p%
+}=\beta_{p}\mathbf{I}),italic_q ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT | italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ) = caligraphic_N ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ; italic_μ start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = square-root start_ARG 1 - italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT , roman_Σ start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT bold_I ) ,
+
+(1)
+
+
+where q⁢(Xp|Xp−1)𝑞conditionalsuperscript𝑋𝑝superscript𝑋𝑝1q(X^{p}|X^{p-1})italic_q ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT | italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ) is a normal distribution with mean μpsubscript𝜇𝑝\mu_{p}italic_μ start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT and variance ΣpsubscriptΣ𝑝\Sigma_{p}roman_Σ start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT, and 𝐈𝐈\mathbf{I}bold_I is the identity matrix, representing equal standard deviation βpsubscript𝛽𝑝\beta_{p}italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT across all dimensions.
+
+
+The posterior probability from the original data X0superscript𝑋0X^{0}italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT to the noisy data XPsuperscript𝑋𝑃X^{P}italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT can be formulated as:
+
+
+
+q⁢(XP|X0)=∏p=1Pq⁢(Xp|Xp−1).𝑞conditionalsuperscript𝑋𝑃superscript𝑋0superscriptsubscriptproduct𝑝1𝑃𝑞conditionalsuperscript𝑋𝑝superscript𝑋𝑝1q(X^{P}|X^{0})=\prod_{p=1}^{P}q(X^{p}|X^{p-1}).italic_q ( italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT | italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT ) = ∏ start_POSTSUBSCRIPT italic_p = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT italic_q ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT | italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ) .
+
+(2)
+
+
+Therefore, Xpsuperscript𝑋𝑝X^{p}italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT can be obtained through p𝑝pitalic_p iterations of sampling. However, a large p𝑝pitalic_p increases computational cost, to avoid this, by defining αp=1−βpsubscript𝛼𝑝1subscript𝛽𝑝\alpha_{p}=1-\beta_{p}italic_α start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = 1 - italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT, Xpsuperscript𝑋𝑝X^{p}italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT can be derived in a single sampling step as:
+
+
+
+<math alttext="{X}^{p}\sim q(X^{p}\mid X^{0})=\mathcal{N}\left(X^{p};\sqrt{\bar{\alpha}_{p}}X%
+^{0},(1-\bar{\alpha}_{p})\mathbf{I}\right)," class="ltx_Math" display="block" id="S2.E3.m1.1">Xp∼q⁢(Xp∣X0)=𝒩⁢(Xp;α¯p⁢X0,(1−α¯p)⁢𝐈),similar-tosuperscript𝑋𝑝𝑞conditionalsuperscript𝑋𝑝superscript𝑋0𝒩superscript𝑋𝑝subscript¯𝛼𝑝superscript𝑋01subscript¯𝛼𝑝𝐈{X}^{p}\sim q(X^{p}\mid X^{0})=\mathcal{N}\left(X^{p};\sqrt{\bar{\alpha}_{p}}X%
+^{0},(1-\bar{\alpha}_{p})\mathbf{I}\right),italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ∼ italic_q ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ∣ italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT ) = caligraphic_N ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ; square-root start_ARG over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT , ( 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT ) bold_I ) ,
+
+(3)
+
+
+where α¯p=∏m=1pαmsubscript¯𝛼𝑝superscriptsubscriptproduct𝑚1𝑝subscript𝛼𝑚\bar{\alpha}_{p}=\prod_{m=1}^{p}\alpha_{m}over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = ∏ start_POSTSUBSCRIPT italic_m = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT italic_α start_POSTSUBSCRIPT italic_m end_POSTSUBSCRIPT is the cumulative product of αmsubscript𝛼𝑚\alpha_{m}italic_α start_POSTSUBSCRIPT italic_m end_POSTSUBSCRIPT. Note that βpsubscript𝛽𝑝\beta_{p}italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT is a hyperparameter, which can be fixed to a constant or chosen under a schedule over P𝑃Pitalic_P steps [37]. Based on βpsubscript𝛽𝑝\beta_{p}italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT, it is easy to precompute αpsubscript𝛼𝑝\alpha_{p}italic_α start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT and α¯psubscript¯𝛼𝑝\bar{\alpha}_{p}over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT for all steps.
+
+
+
+
+II-B2 Reverse Process for Denoised Data
+
+The denoised data X^0superscript^𝑋0\hat{X}^{0}over^ start_ARG italic_X end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT is inferred by progressively removing noise through a reverse process, starting with a sample XPsuperscript𝑋𝑃X^{P}italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT drawn from a standard normal distribution, 𝒩⁢(0,𝐈)𝒩0𝐈\mathcal{N}(0,\mathbf{I})caligraphic_N ( 0 , bold_I ). However, estimating the conditional probability distribution q⁢(Xp−1∣Xp)𝑞conditionalsuperscript𝑋𝑝1superscript𝑋𝑝q(X^{p-1}\mid X^{p})italic_q ( italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ∣ italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ) is challenging. To address this, we construct a parameterized model ϕitalic-ϕ\phiitalic_ϕ, defined as:
+
+
+
+<math alttext="\phi(X^{p-1}\mid X^{p})=\mathcal{N}\left(X^{p-1};\mu(X^{p},p,S_{t},A_{t}),%
+\tilde{\beta}_{p}\mathbf{I}\right)," class="ltx_Math" display="block" id="S2.E4.m1.2">ϕ⁢(Xp−1∣Xp)=𝒩⁢(Xp−1;μ⁢(Xp,p,St,At),β~p⁢𝐈),italic-ϕconditionalsuperscript𝑋𝑝1superscript𝑋𝑝𝒩superscript𝑋𝑝1𝜇superscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡subscript~𝛽𝑝𝐈\phi(X^{p-1}\mid X^{p})=\mathcal{N}\left(X^{p-1};\mu(X^{p},p,S_{t},A_{t}),%
+\tilde{\beta}_{p}\mathbf{I}\right),italic_ϕ ( italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ∣ italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ) = caligraphic_N ( italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ; italic_μ ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) , over~ start_ARG italic_β end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT bold_I ) ,
+
+(4)
+
+
+where β~p=1−α¯p−11−α¯p⁢βpsubscript~𝛽𝑝1subscript¯𝛼𝑝11subscript¯𝛼𝑝subscript𝛽𝑝\tilde{\beta}_{p}=\frac{1-\bar{\alpha}_{p-1}}{1-\bar{\alpha}_{p}}\beta_{p}over~ start_ARG italic_β end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = divide start_ARG 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p - 1 end_POSTSUBSCRIPT end_ARG start_ARG 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT denotes the deterministic variance, which can be derived from the known α¯psubscript¯𝛼𝑝\bar{\alpha}_{p}over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT and βpsubscript𝛽𝑝\beta_{p}italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT. Eq. (4) allows us to obtain the trajectory from XPsuperscript𝑋𝑃X^{P}italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT to X0superscript𝑋0X^{0}italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT as:
+
+
+
+ϕ⁢(X0)=ϕ⁢(XP)⁢∏p=1Pϕ⁢(Xp−1∣Xp).italic-ϕsuperscript𝑋0italic-ϕsuperscript𝑋𝑃superscriptsubscriptproduct𝑝1𝑃italic-ϕconditionalsuperscript𝑋𝑝1superscript𝑋𝑝\phi(X^{0})=\phi(X^{P})\prod_{p=1}^{P}\phi(X^{p-1}\mid X^{p}).italic_ϕ ( italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT ) = italic_ϕ ( italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT ) ∏ start_POSTSUBSCRIPT italic_p = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT italic_ϕ ( italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ∣ italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT ) .
+
+(5)
+
+
+By conditioning the model on diffusion step-p𝑝pitalic_p, it learns to predict the Gaussian parameters, i.e., the mean μ⁢(Xp,p,St,At)𝜇superscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡\mu(X^{p},p,S_{t},A_{t})italic_μ ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) and the covariance matrix β~p⁢𝐈subscript~𝛽𝑝𝐈\tilde{\beta}_{p}\mathbf{I}over~ start_ARG italic_β end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT bold_I for each diffusion step. Eq. (4) can be modeled as a noise prediction model with the covariance matrix fixed as β~psubscript~𝛽𝑝\tilde{\beta}_{p}over~ start_ARG italic_β end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT, and
+the estimated mean expressed as:
+
+
+
+<math alttext="\mu(X^{p},p,S_{t},A_{t})=\frac{1}{\sqrt{\alpha_{p}}}\left(X^{p}-\frac{\beta_{p%
+}}{\sqrt{1-\bar{\alpha}_{p}}}\epsilon_{\Theta}(X^{p},p,S_{t},A_{t})\right)," class="ltx_Math" display="block" id="S2.E6.m1.3">μ⁢(Xp,p,St,At)=1αp⁢(Xp−βp1−α¯p⁢ϵΘ⁢(Xp,p,St,At)),𝜇superscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡1subscript𝛼𝑝superscript𝑋𝑝subscript𝛽𝑝1subscript¯𝛼𝑝subscriptitalic-ϵΘsuperscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡\mu(X^{p},p,S_{t},A_{t})=\frac{1}{\sqrt{\alpha_{p}}}\left(X^{p}-\frac{\beta_{p%
+}}{\sqrt{1-\bar{\alpha}_{p}}}\epsilon_{\Theta}(X^{p},p,S_{t},A_{t})\right),italic_μ ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) = divide start_ARG 1 end_ARG start_ARG square-root start_ARG italic_α start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG end_ARG ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT - divide start_ARG italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG start_ARG square-root start_ARG 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG end_ARG italic_ϵ start_POSTSUBSCRIPT roman_Θ end_POSTSUBSCRIPT ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) ) ,
+
+(6)
+
+
+where ϵΘ⁢(Xp,p,St,At)subscriptitalic-ϵΘsuperscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡\epsilon_{\Theta}(X^{p},p,S_{t},A_{t})italic_ϵ start_POSTSUBSCRIPT roman_Θ end_POSTSUBSCRIPT ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) is a neural network with parameters ΘΘ\Thetaroman_Θ to generate denoising noise based on Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT and Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT.
+We first sample XP∼𝒩⁢(0,𝐈)similar-tosuperscript𝑋𝑃𝒩0𝐈{X}^{P}\sim\mathcal{N}(0,\mathbf{I})italic_X start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT ∼ caligraphic_N ( 0 , bold_I ), then sample from the reverse diffusion chain parameterized by ΘΘ\Thetaroman_Θ as:
+
+
+
+<math alttext="X^{p-1}\mid X^{p}=\frac{X^{p}}{\sqrt{\alpha_{p}}}-\frac{\beta_{p}}{\sqrt{%
+\alpha_{p}(1-\bar{\alpha}_{p})}}\epsilon_{\Theta}(X^{p},p,S_{t},A_{t})+\sqrt{%
+\beta_{p}}\epsilon," class="ltx_Math" display="block" id="S2.E7.m1.3">Xp−1∣Xp=Xpαp−βpαp⁢(1−α¯p)⁢ϵΘ⁢(Xp,p,St,At)+βp⁢ϵ,conditionalsuperscript𝑋𝑝1superscript𝑋𝑝superscript𝑋𝑝subscript𝛼𝑝subscript𝛽𝑝subscript𝛼𝑝1subscript¯𝛼𝑝subscriptitalic-ϵΘsuperscript𝑋𝑝𝑝subscript𝑆𝑡subscript𝐴𝑡subscript𝛽𝑝italic-ϵX^{p-1}\mid X^{p}=\frac{X^{p}}{\sqrt{\alpha_{p}}}-\frac{\beta_{p}}{\sqrt{%
+\alpha_{p}(1-\bar{\alpha}_{p})}}\epsilon_{\Theta}(X^{p},p,S_{t},A_{t})+\sqrt{%
+\beta_{p}}\epsilon,italic_X start_POSTSUPERSCRIPT italic_p - 1 end_POSTSUPERSCRIPT ∣ italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT = divide start_ARG italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT end_ARG start_ARG square-root start_ARG italic_α start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG end_ARG - divide start_ARG italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG start_ARG square-root start_ARG italic_α start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT ( 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT ) end_ARG end_ARG italic_ϵ start_POSTSUBSCRIPT roman_Θ end_POSTSUBSCRIPT ( italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT , italic_p , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) + square-root start_ARG italic_β start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_ϵ ,
+
+(7)
+
+
+where ϵ∼𝒩⁢(0,𝐈)similar-toitalic-ϵ𝒩0𝐈\epsilon\sim\mathcal{N}(0,\mathbf{I})italic_ϵ ∼ caligraphic_N ( 0 , bold_I ) and p=1,…,P𝑝1…𝑃p=1,\ldots,Pitalic_p = 1 , … , italic_P. Furthermore, the loss function can be expressed as [17]:
+
+
+
+<math alttext="\mathcal{L}_{p}=\mathbb{E}_{{X}_{0},p,\epsilon}\left[\|\epsilon-\epsilon_{%
+\Theta}\left(\sqrt{\bar{\alpha}_{p}}{X}^{0}+\sqrt{1-\bar{\alpha}_{p}}\epsilon,%
+p\right)\|^{2}\right]." class="ltx_Math" display="block" id="S2.E8.m1.5">ℒp=𝔼X0,p,ϵ⁢[‖ϵ−ϵΘ⁢(α¯p⁢X0+1−α¯p⁢ϵ,p)‖2].subscriptℒ𝑝subscript𝔼subscript𝑋0𝑝italic-ϵdelimited-[]superscriptnormitalic-ϵsubscriptitalic-ϵΘsubscript¯𝛼𝑝superscript𝑋01subscript¯𝛼𝑝italic-ϵ𝑝2\mathcal{L}_{p}=\mathbb{E}_{{X}_{0},p,\epsilon}\left[\|\epsilon-\epsilon_{%
+\Theta}\left(\sqrt{\bar{\alpha}_{p}}{X}^{0}+\sqrt{1-\bar{\alpha}_{p}}\epsilon,%
+p\right)\|^{2}\right].caligraphic_L start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT = blackboard_E start_POSTSUBSCRIPT italic_X start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT , italic_p , italic_ϵ end_POSTSUBSCRIPT [ ∥ italic_ϵ - italic_ϵ start_POSTSUBSCRIPT roman_Θ end_POSTSUBSCRIPT ( square-root start_ARG over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT + square-root start_ARG 1 - over¯ start_ARG italic_α end_ARG start_POSTSUBSCRIPT italic_p end_POSTSUBSCRIPT end_ARG italic_ϵ , italic_p ) ∥ start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT ] .
+
+(8)
+
+
+Eq. (8) shifts the model’s task from predicting the mean of the distribution to predicting the noise ϵitalic-ϵ\epsilonitalic_ϵ at each diffusion step p𝑝pitalic_p.
+
+
+
+
+
+
+III System Model and Problem Formulation
+
+
+In this section, we present the system model of an FD mobile wireless communication system. In addition, we formulate the problem using MDP to facilitate the application of our proposed framework.
+
+
+
+III-A System Model
+
+
+We consider a network where an FD-based BS, equipped with two uniform linear arrays (ULAs), receives communication signals from L𝐿Litalic_L single antenna
+uplink users while simultaneously transmitting a downlink signal over the same time-frequency resources [3]. The downlink signal, sent via a Ntsubscript𝑁𝑡N_{t}italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT-element ULA, serves to communicate with K𝐾Kitalic_K single-antenna downlink users. The uplink communication signals are captured by the receive ULA with Nrsubscript𝑁𝑟N_{r}italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT elements at the BS.
+
+
+In the system’s downlink transmission, a narrowband signal is transmitted for multi-user communication using multi-antenna beamforming. The transmitted signal is formulated as
+𝐱=∑k=1K𝐯k⁢sk𝐱superscriptsubscript𝑘1𝐾subscript𝐯𝑘subscript𝑠𝑘\mathbf{x}=\sum_{k=1}^{K}\mathbf{v}_{k}s_{k}bold_x = ∑ start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT italic_s start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT,
+where 𝐯k∈ℂNt×1subscript𝐯𝑘superscriptℂsubscript𝑁𝑡1\mathbf{v}_{k}\in\mathbb{C}^{N_{t}\times 1}bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT represents the beamforming vector for downlink user k𝑘kitalic_k (with k∈{1,⋯,K}𝑘1⋯𝐾k\in\{1,\cdots,K\}italic_k ∈ { 1 , ⋯ , italic_K }), and sk∈Csubscript𝑠𝑘𝐶s_{k}\in Citalic_s start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ∈ italic_C is the data symbol for user k𝑘kitalic_k, with unit power, i.e., 𝔼⁢{|sk|2}=1𝔼superscriptsubscript𝑠𝑘21\mathbb{E}\left\{|s_{k}|^{2}\right\}=1blackboard_E { | italic_s start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT | start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT } = 1.
+Furthermore, the total transmit power is subject to the constraint
+∑k=1K‖𝐯k‖2≤Pmaxsuperscriptsubscript𝑘1𝐾superscriptnormsubscript𝐯𝑘2subscript𝑃max\sum_{k=1}^{K}\|\mathbf{v}_{k}\|^{2}\leq P_{\text{max}}∑ start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT ∥ bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ∥ start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT ≤ italic_P start_POSTSUBSCRIPT max end_POSTSUBSCRIPT, where Pmaxsubscript𝑃maxP_{\text{max}}italic_P start_POSTSUBSCRIPT max end_POSTSUBSCRIPT represents the
+maximum available power budget of the BS.
+
+
+When the BS transmits 𝐱𝐱\mathbf{x}bold_x, it simultaneously receives the uplink communication signals. Let
+ul∈ℂsubscript𝑢𝑙ℂu_{l}\in\mathbb{C}italic_u start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ∈ blackboard_C represent the uplink signal transmitted by user l𝑙litalic_l (with l∈{1,⋯,L}𝑙1⋯𝐿l\in\{1,\cdots,L\}italic_l ∈ { 1 , ⋯ , italic_L }),
+which satisfies 𝔼⁢{|ul|2}=pl,∀l𝔼superscriptsubscript𝑢𝑙2subscript𝑝𝑙for-all𝑙\mathbb{E}\left\{|u_{l}|^{2}\right\}=p_{l},\ \forall lblackboard_E { | italic_u start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT | start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT } = italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT , ∀ italic_l, where 0≤pl≤Pl0subscript𝑝𝑙subscript𝑃𝑙0\leq p_{l}\leq P_{l}0 ≤ italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ≤ italic_P start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT denotes the average transmit power of user l𝑙litalic_l, and Plsubscript𝑃𝑙P_{l}italic_P start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT is the maximum power budget of user l𝑙litalic_l. The uplink channel between the l𝑙litalic_l-th user and the BS is represented by hl∈ℂNr×1subscriptℎ𝑙superscriptℂsubscript𝑁𝑟1h_{l}\in\mathbb{C}^{N_{r}\times 1}italic_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT, and the received multiuser uplink signal at the BS is expressed as ∑l=1L𝐡l⁢dlsuperscriptsubscript𝑙1𝐿subscript𝐡𝑙subscript𝑑𝑙\sum_{l=1}^{L}\mathbf{h}_{l}d_{l}∑ start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT italic_d start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT. The uplink transmission design is carried out by adjusting the transmit power {pl}l=1Lsuperscriptsubscriptsubscript𝑝𝑙𝑙1𝐿\{p_{l}\}_{l=1}^{L}{ italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT of uplink users.
+
+
+Assuming that both the transmit and receive ULAs at the BS have half-wavelength antenna spacing, we define the transmit array steering vector in the direction of θ𝜃\thetaitalic_θ as <math alttext="\mathbf{a}_{t}(\theta)\triangleq\frac{1}{\sqrt{N_{t}}}\left[1,e^{j\pi\sin(%
+\theta)},\dots,e^{j\pi(N_{t}-1)\sin(\theta)}\right]^{T}" class="ltx_Math" display="inline" id="S3.SS1.p4.2.m2.10">𝐚t⁢(θ)≜1Nt⁢[1,ej⁢π⁢sin⁡(θ),…,ej⁢π⁢(Nt−1)⁢sin⁡(θ)]T≜subscript𝐚𝑡𝜃1subscript𝑁𝑡superscript1superscript𝑒𝑗𝜋𝜃…superscript𝑒𝑗𝜋subscript𝑁𝑡1𝜃𝑇\mathbf{a}_{t}(\theta)\triangleq\frac{1}{\sqrt{N_{t}}}\left[1,e^{j\pi\sin(%
+\theta)},\dots,e^{j\pi(N_{t}-1)\sin(\theta)}\right]^{T}bold_a start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ( italic_θ ) ≜ divide start_ARG 1 end_ARG start_ARG square-root start_ARG italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT end_ARG end_ARG [ 1 , italic_e start_POSTSUPERSCRIPT italic_j italic_π roman_sin ( italic_θ ) end_POSTSUPERSCRIPT , … , italic_e start_POSTSUPERSCRIPT italic_j italic_π ( italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT - 1 ) roman_sin ( italic_θ ) end_POSTSUPERSCRIPT ] start_POSTSUPERSCRIPT italic_T end_POSTSUPERSCRIPT. Similarly, the receive steering vector is defined as <math alttext="\mathbf{a}_{r}(\theta)\triangleq\frac{1}{\sqrt{N_{r}}}\left[1,e^{j\pi\sin(%
+\theta)},\dots,e^{j\pi(N_{r}-1)\sin(\theta)}\right]^{T}" class="ltx_Math" display="inline" id="S3.SS1.p4.3.m3.10">𝐚r⁢(θ)≜1Nr⁢[1,ej⁢π⁢sin⁡(θ),…,ej⁢π⁢(Nr−1)⁢sin⁡(θ)]T≜subscript𝐚𝑟𝜃1subscript𝑁𝑟superscript1superscript𝑒𝑗𝜋𝜃…superscript𝑒𝑗𝜋subscript𝑁𝑟1𝜃𝑇\mathbf{a}_{r}(\theta)\triangleq\frac{1}{\sqrt{N_{r}}}\left[1,e^{j\pi\sin(%
+\theta)},\dots,e^{j\pi(N_{r}-1)\sin(\theta)}\right]^{T}bold_a start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT ( italic_θ ) ≜ divide start_ARG 1 end_ARG start_ARG square-root start_ARG italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT end_ARG end_ARG [ 1 , italic_e start_POSTSUPERSCRIPT italic_j italic_π roman_sin ( italic_θ ) end_POSTSUPERSCRIPT , … , italic_e start_POSTSUPERSCRIPT italic_j italic_π ( italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT - 1 ) roman_sin ( italic_θ ) end_POSTSUPERSCRIPT ] start_POSTSUPERSCRIPT italic_T end_POSTSUPERSCRIPT.
+Given the uplink communication signal, the received signal at the FD-based BS is expressed as:
+
+
+
+𝐲BS=∑l=1L𝐡l⁢dl+𝐳+𝐧,superscript𝐲BSsuperscriptsubscript𝑙1𝐿subscript𝐡𝑙subscript𝑑𝑙𝐳𝐧\mathbf{y}^{\text{BS}}=\sum_{l=1}^{L}\mathbf{h}_{l}d_{l}+\mathbf{z}+\mathbf{n},bold_y start_POSTSUPERSCRIPT BS end_POSTSUPERSCRIPT = ∑ start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT italic_d start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT + bold_z + bold_n ,
+
+(9)
+
+
+where
+𝐧∈ℂNr×1𝐧superscriptℂsubscript𝑁𝑟1\mathbf{n}\in\mathbb{C}^{N_{r}\times 1}bold_n ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT
+denotes additive white Gaussian noise (AWGN) with covariance σr2⁢𝐈Nrsuperscriptsubscript𝜎𝑟2subscript𝐈subscript𝑁𝑟\sigma_{r}^{2}\mathbf{I}_{N_{r}}italic_σ start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT bold_I start_POSTSUBSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT end_POSTSUBSCRIPT, and 𝐳∈ℂNr×1𝐳superscriptℂsubscript𝑁𝑟1\mathbf{z}\in\mathbb{C}^{N_{r}\times 1}bold_z ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT denotes the signal-dependent interference, which can be divided into two parts. The first part represents the self-interference (SI) caused by the FD operation, which can be mitigated using SI cancellation (SIC) techniques within the FD system[4]. The second part corresponds to the clutter reflected
+from the surrounding environment. Assuming that there exist F𝐹Fitalic_F signal-dependent uncorrelated interferers located at angles {θf}f=1Fsuperscriptsubscriptsubscript𝜃𝑓𝑓1𝐹\{\theta_{f}\}_{f=1}^{F}{ italic_θ start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_f = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_F end_POSTSUPERSCRIPT, ∀f∈{1,…,F}for-all𝑓1…𝐹\forall f\in\{1,\dots,F\}∀ italic_f ∈ { 1 , … , italic_F }. These F𝐹Fitalic_F interferers also reflect the sensing signal to the BS, yielding the undesired interference ∑f=1Fβf⁢𝐀⁢(θ𝐟)⁢𝐱superscriptsubscript𝑓1𝐹subscript𝛽𝑓𝐀subscript𝜃𝐟𝐱\sum_{f=1}^{F}\beta_{f}\mathbf{A(\theta_{f})}\mathbf{x}∑ start_POSTSUBSCRIPT italic_f = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_F end_POSTSUPERSCRIPT italic_β start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT bold_A ( italic_θ start_POSTSUBSCRIPT bold_f end_POSTSUBSCRIPT ) bold_x with βf∈ℂsubscript𝛽𝑓ℂ\beta_{f}\in\mathbb{C}italic_β start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT ∈ blackboard_C being the complex amplitude of the f𝑓fitalic_f-th interferer and 𝐀⁢(θ𝐟)=ar⁢(θf)⁢atH⁢(θf)𝐀subscript𝜃𝐟subscript𝑎𝑟subscript𝜃𝑓superscriptsubscript𝑎𝑡𝐻subscript𝜃𝑓\mathbf{A(\theta_{f})}=a_{r}(\theta_{f})a_{t}^{H}(\theta_{f})bold_A ( italic_θ start_POSTSUBSCRIPT bold_f end_POSTSUBSCRIPT ) = italic_a start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT ( italic_θ start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT ) italic_a start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT ( italic_θ start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT ), ∀ffor-all𝑓\forall f∀ italic_f [3].
+
+
+Denote the channel between downlink user k𝑘kitalic_k and the BS as gk∈ℂNt×1subscript𝑔𝑘superscriptℂsubscript𝑁𝑡1g_{k}\in\mathbb{C}^{N_{t}\times 1}italic_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT. The received signal at downlink user k𝑘kitalic_k is then expressed as
+
+
+
+<math alttext="y_{k}^{\text{User}}={\mathbf{g}_{k}^{H}\mathbf{v}_{k}s_{k}}+n_{k},\quad\forall
+k," class="ltx_Math" display="block" id="S3.E10.m1.1">ykUser=𝐠kH⁢𝐯k⁢sk+nk,∀k,superscriptsubscript𝑦𝑘Usersuperscriptsubscript𝐠𝑘𝐻subscript𝐯𝑘subscript𝑠𝑘subscript𝑛𝑘for-all𝑘y_{k}^{\text{User}}={\mathbf{g}_{k}^{H}\mathbf{v}_{k}s_{k}}+n_{k},\quad\forall
+k,italic_y start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT User end_POSTSUPERSCRIPT = bold_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT italic_s start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT + italic_n start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT , ∀ italic_k ,
+
+(10)
+
+
+where nksubscript𝑛𝑘n_{k}italic_n start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT represents the AWGN with variance σk2superscriptsubscript𝜎𝑘2\sigma_{k}^{2}italic_σ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT. Given that the interference from other users is effectively suppressed due to advanced interference mitigation techniques, the signal-to-noise ratio (SNR) for downlink user k𝑘kitalic_k is given by
+
+
+
+<math alttext="\gamma_{k}^{\text{com, DL}}=\frac{|\mathbf{g}_{k}^{H}\mathbf{v}_{k}|^{2}}{%
+\sigma_{k}^{2}},\quad\forall k." class="ltx_Math" display="block" id="S3.E11.m1.2">γkcom, DL=|𝐠kH⁢𝐯k|2σk2,∀k.superscriptsubscript𝛾𝑘com, DLsuperscriptsuperscriptsubscript𝐠𝑘𝐻subscript𝐯𝑘2superscriptsubscript𝜎𝑘2for-all𝑘\gamma_{k}^{\text{com, DL}}=\frac{|\mathbf{g}_{k}^{H}\mathbf{v}_{k}|^{2}}{%
+\sigma_{k}^{2}},\quad\forall k.italic_γ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT com, DL end_POSTSUPERSCRIPT = divide start_ARG | bold_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT | start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG start_ARG italic_σ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG , ∀ italic_k .
+
+(11)
+
+
+To recover the signal from uplink at the BS, a set of receive beamformers {𝐰l}l=1L∈ℂNr×1superscriptsubscriptsubscript𝐰𝑙𝑙1𝐿superscriptℂsubscript𝑁𝑟1\left\{\mathbf{w}_{l}\right\}_{l=1}^{L}\in\mathbb{C}^{N_{r}\times 1}{ bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT ∈ blackboard_C start_POSTSUPERSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT × 1 end_POSTSUPERSCRIPT are applied to the received signal 𝐲BSsuperscript𝐲BS\mathbf{y}^{\text{BS}}bold_y start_POSTSUPERSCRIPT BS end_POSTSUPERSCRIPT. The corresponding signal-to-interference-plus-noise ratio (SINR) for uplink user l𝑙litalic_l is expressed as [3]:
+
+
+
+<math alttext="\gamma_{l}^{\text{com, UL}}=\frac{p_{l}\mathbf{w}_{l}^{H}\mathbf{h}_{l}\mathbf%
+{h}_{l}^{H}\mathbf{w}_{l}}{\mathbf{w}_{l}^{H}\left(\sum_{l^{\prime}=1,l^{%
+\prime}\neq l}^{L}p_{l^{\prime}}\mathbf{h}_{l^{\prime}}\mathbf{h}_{l^{\prime}}%
+^{H}+\mathbf{GQG}^{H}+\sigma_{r}^{2}\mathbf{I}_{N_{r}}\right)\mathbf{w}_{l}},%
+\quad\forall l," class="ltx_Math" display="block" id="S3.E12.m1.4">γlcom, UL=pl⁢𝐰lH⁢𝐡l⁢𝐡lH⁢𝐰l𝐰lH⁢(∑l′=1,l′≠lLpl′⁢𝐡l′⁢𝐡l′H+𝐆𝐐𝐆H+σr2⁢𝐈Nr)⁢𝐰l,∀l,superscriptsubscript𝛾𝑙com, ULsubscript𝑝𝑙superscriptsubscript𝐰𝑙𝐻subscript𝐡𝑙superscriptsubscript𝐡𝑙𝐻subscript𝐰𝑙superscriptsubscript𝐰𝑙𝐻superscriptsubscriptformulae-sequencesuperscript𝑙′1superscript𝑙′𝑙𝐿subscript𝑝superscript𝑙′subscript𝐡superscript𝑙′superscriptsubscript𝐡superscript𝑙′𝐻superscript𝐆𝐐𝐆𝐻superscriptsubscript𝜎𝑟2subscript𝐈subscript𝑁𝑟subscript𝐰𝑙for-all𝑙\gamma_{l}^{\text{com, UL}}=\frac{p_{l}\mathbf{w}_{l}^{H}\mathbf{h}_{l}\mathbf%
+{h}_{l}^{H}\mathbf{w}_{l}}{\mathbf{w}_{l}^{H}\left(\sum_{l^{\prime}=1,l^{%
+\prime}\neq l}^{L}p_{l^{\prime}}\mathbf{h}_{l^{\prime}}\mathbf{h}_{l^{\prime}}%
+^{H}+\mathbf{GQG}^{H}+\sigma_{r}^{2}\mathbf{I}_{N_{r}}\right)\mathbf{w}_{l}},%
+\quad\forall l,italic_γ start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT com, UL end_POSTSUPERSCRIPT = divide start_ARG italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT end_ARG start_ARG bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT ( ∑ start_POSTSUBSCRIPT italic_l start_POSTSUPERSCRIPT ′ end_POSTSUPERSCRIPT = 1 , italic_l start_POSTSUPERSCRIPT ′ end_POSTSUPERSCRIPT ≠ italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT italic_p start_POSTSUBSCRIPT italic_l start_POSTSUPERSCRIPT ′ end_POSTSUPERSCRIPT end_POSTSUBSCRIPT bold_h start_POSTSUBSCRIPT italic_l start_POSTSUPERSCRIPT ′ end_POSTSUPERSCRIPT end_POSTSUBSCRIPT bold_h start_POSTSUBSCRIPT italic_l start_POSTSUPERSCRIPT ′ end_POSTSUPERSCRIPT end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT + bold_GQG start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT + italic_σ start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT bold_I start_POSTSUBSCRIPT italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT end_POSTSUBSCRIPT ) bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT end_ARG , ∀ italic_l ,
+
+(12)
+
+
+where 𝐆=∑f=1Fβf⁢𝐀⁢(θf)𝐆superscriptsubscript𝑓1𝐹subscript𝛽𝑓𝐀subscript𝜃𝑓\mathbf{G}=\sum_{f=1}^{F}\beta_{f}\mathbf{A}(\theta_{f})bold_G = ∑ start_POSTSUBSCRIPT italic_f = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_F end_POSTSUPERSCRIPT italic_β start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT bold_A ( italic_θ start_POSTSUBSCRIPT italic_f end_POSTSUBSCRIPT ) denotes the interference channel from the environment, and <math alttext="\mathbf{Q}=\mathbb{E}\left\{\mathbf{x}\mathbf{x}^{H}\right\}=\sum_{k=1}^{K}%
+\mathbf{v}_{k}\mathbf{v}_{k}^{H}" class="ltx_Math" display="inline" id="S3.SS1.p5.11.m2.1">𝐐=𝔼⁢{𝐱𝐱H}=∑k=1K𝐯k⁢𝐯kH𝐐𝔼superscript𝐱𝐱𝐻superscriptsubscript𝑘1𝐾subscript𝐯𝑘superscriptsubscript𝐯𝑘𝐻\mathbf{Q}=\mathbb{E}\left\{\mathbf{x}\mathbf{x}^{H}\right\}=\sum_{k=1}^{K}%
+\mathbf{v}_{k}\mathbf{v}_{k}^{H}bold_Q = blackboard_E { bold_xx start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT } = ∑ start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_H end_POSTSUPERSCRIPT denotes the covariance matrix of the downlink signal.
+
+
+The objective is to maximize the total sum rate of all the uplink and downlink users, subject to the constraint of limited transmit power budgets. The optimization problem can be formulated as follows:
+
+
+
+
+
+(P0)P0\displaystyle(\textbf{P0})( P0 )
+<math alttext="\displaystyle\max_{\mathcal{O}}\quad C=\sum_{l=1}^{L}\log_{2}\left(1+\gamma_{l%
+}^{\text{com, UL}}\right)+\sum_{k=1}^{K}\log_{2}\left(1+\gamma_{k}^{\text{com,%
+ DL}}\right)" class="ltx_Math" display="inline" id="S3.E13.1.m2.6">max𝒪C=∑l=1Llog2⁡(1+γlcom, UL)+∑k=1Klog2⁡(1+γkcom, DL)subscript𝒪𝐶superscriptsubscript𝑙1𝐿subscript21superscriptsubscript𝛾𝑙com, ULsuperscriptsubscript𝑘1𝐾subscript21superscriptsubscript𝛾𝑘com, DL\displaystyle\max_{\mathcal{O}}\quad C=\sum_{l=1}^{L}\log_{2}\left(1+\gamma_{l%
+}^{\text{com, UL}}\right)+\sum_{k=1}^{K}\log_{2}\left(1+\gamma_{k}^{\text{com,%
+ DL}}\right)roman_max start_POSTSUBSCRIPT caligraphic_O end_POSTSUBSCRIPT italic_C = ∑ start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT roman_log start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT ( 1 + italic_γ start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT com, UL end_POSTSUPERSCRIPT ) + ∑ start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT roman_log start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT ( 1 + italic_γ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT com, DL end_POSTSUPERSCRIPT )
+
+(13a)
+
+
+
+
+<math alttext="\displaystyle\text{s.t.}\quad\sum_{k=1}^{K}\|\mathbf{v}_{k}\|^{2}\leq P_{\text%
+{max}}," class="ltx_Math" display="inline" id="S3.E13.2.m2.2">s.t.∑k=1K‖𝐯k‖2≤Pmax,s.t.superscriptsubscript𝑘1𝐾superscriptnormsubscript𝐯𝑘2subscript𝑃max\displaystyle\text{s.t.}\quad\sum_{k=1}^{K}\|\mathbf{v}_{k}\|^{2}\leq P_{\text%
+{max}},s.t. ∑ start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT ∥ bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ∥ start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT ≤ italic_P start_POSTSUBSCRIPT max end_POSTSUBSCRIPT ,
+
+(13b)
+
+
+
+
+0≤pl≤Pl,∀l,formulae-sequence0subscript𝑝𝑙subscript𝑃𝑙for-all𝑙\displaystyle\quad 0\leq p_{l}\leq P_{l},\quad\forall l,0 ≤ italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ≤ italic_P start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT , ∀ italic_l ,
+
+(13c)
+
+
+
+where <math alttext="\mathcal{O}=\{\left\{\mathbf{w}_{l}\right\}_{l=1}^{L},\left\{\mathbf{v}_{k}%
+\right\}_{k=1}^{K},\left\{p_{l}\right\}_{l=1}^{L}\}" class="ltx_Math" display="inline" id="S3.SS1.p6.1.m1.3">𝒪={{𝐰l}l=1L,{𝐯k}k=1K,{pl}l=1L}𝒪superscriptsubscriptsubscript𝐰𝑙𝑙1𝐿superscriptsubscriptsubscript𝐯𝑘𝑘1𝐾superscriptsubscriptsubscript𝑝𝑙𝑙1𝐿\mathcal{O}=\{\left\{\mathbf{w}_{l}\right\}_{l=1}^{L},\left\{\mathbf{v}_{k}%
+\right\}_{k=1}^{K},\left\{p_{l}\right\}_{l=1}^{L}\}caligraphic_O = { { bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT , { bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT , { italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT } is the set of
+optimization variables.
+
+
+
+
+III-B Problem Reformulation
+
+
+Conventional optimization techniques for addressing the resource allocation problem often necessitate accurate CSI. However, obtaining precise CSI incurs high computational costs, resulting in substantial resource utilization and latency. These drawbacks are especially critical in real-time communication networks characterized by highly dynamic and rapidly fluctuating environments. To overcome these limitations, we reformulate the resource allocation problem as an MDP.
+
+
+
+III-B1 State Space, Action Space, and Reward Function
+
+The state space of the BS at each time step is <math alttext="\mathcal{S}=\{\{\left(x_{k},y_{k}\right)\}_{k=1}^{K},\{\left(x_{l},y_{l}\right%
+)\}_{l=1}^{L},\{\mathbf{g}_{k}\}_{k=1}^{K},\{\mathbf{h}_{l}\}_{l=1}^{L}\}" class="ltx_Math" display="inline" id="S3.SS2.SSS1.p1.1.m1.4">𝒮={{(xk,yk)}k=1K,{(xl,yl)}l=1L,{𝐠k}k=1K,{𝐡l}l=1L}𝒮superscriptsubscriptsubscript𝑥𝑘subscript𝑦𝑘𝑘1𝐾superscriptsubscriptsubscript𝑥𝑙subscript𝑦𝑙𝑙1𝐿superscriptsubscriptsubscript𝐠𝑘𝑘1𝐾superscriptsubscriptsubscript𝐡𝑙𝑙1𝐿\mathcal{S}=\{\{\left(x_{k},y_{k}\right)\}_{k=1}^{K},\{\left(x_{l},y_{l}\right%
+)\}_{l=1}^{L},\{\mathbf{g}_{k}\}_{k=1}^{K},\{\mathbf{h}_{l}\}_{l=1}^{L}\}caligraphic_S = { { ( italic_x start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT , italic_y start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ) } start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT , { ( italic_x start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT , italic_y start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ) } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT , { bold_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT , { bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT }, where (xk,yk)subscript𝑥𝑘subscript𝑦𝑘(x_{k},y_{k})( italic_x start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT , italic_y start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT ) is the location of downlink user k𝑘kitalic_k at current time step, (xl,yl)subscript𝑥𝑙subscript𝑦𝑙(x_{l},y_{l})( italic_x start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT , italic_y start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ) is the location of uplink user l𝑙litalic_l at current time step, 𝐠ksubscript𝐠𝑘\mathbf{g}_{k}bold_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT and 𝐡lsubscript𝐡𝑙\mathbf{h}_{l}bold_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT denote the downlink channel gain for user k𝑘kitalic_k and uplink channel gain for user l𝑙litalic_l, respectively.
+The action space of the BS at each time step corresponds to the optimization variables in problem P0, expressed as <math alttext="\mathcal{A}=\{\left\{\mathbf{w}_{l}\right\}_{l=1}^{L},\left\{\mathbf{v}_{k}%
+\right\}_{k=1}^{K},\left\{p_{l}\geq 0\right\}_{l=1}^{L}\}" class="ltx_Math" display="inline" id="S3.SS2.SSS1.p1.11.m11.3">𝒜={{𝐰l}l=1L,{𝐯k}k=1K,{pl≥0}l=1L}𝒜superscriptsubscriptsubscript𝐰𝑙𝑙1𝐿superscriptsubscriptsubscript𝐯𝑘𝑘1𝐾superscriptsubscriptsubscript𝑝𝑙0𝑙1𝐿\mathcal{A}=\{\left\{\mathbf{w}_{l}\right\}_{l=1}^{L},\left\{\mathbf{v}_{k}%
+\right\}_{k=1}^{K},\left\{p_{l}\geq 0\right\}_{l=1}^{L}\}caligraphic_A = { { bold_w start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT , { bold_v start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_k = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_K end_POSTSUPERSCRIPT , { italic_p start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT ≥ 0 } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT }.
+The most straightforward expression for the reward function would be to use the optimization objective. In this network, the reward function can be directly designed as the sum rate R=C𝑅𝐶R=Citalic_R = italic_C.
+
+
+
+
+III-B2 Optimization Formulation
+
+Let π𝜋\mathcal{\pi}italic_π denote a stochastic policy (i.e., π:𝒮×𝒜→[0,1]:𝜋→𝒮𝒜01\mathcal{\pi}:\mathcal{S}\times\mathcal{A}\rightarrow[0,1]italic_π : caligraphic_S × caligraphic_A → [ 0 , 1 ]) which is the probability that action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT is taken at time step t𝑡titalic_t given the state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, i.e., π=Pr⁢{At|St}𝜋Prconditional-setsubscript𝐴𝑡subscript𝑆𝑡\mathcal{\pi}=\text{Pr}\{A_{t}|S_{t}\}italic_π = Pr { italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT }. Given the discount factor γ𝛾\gammaitalic_γ, let J⁢(π)𝐽𝜋J(\mathcal{\pi})italic_J ( italic_π ) denote the expected discounted reward of the network by following policy π𝜋\mathcal{\pi}italic_π:
+
+
+
+<math alttext="J(\mathcal{\pi})=\mathbb{E}_{A_{t}\sim\mathcal{\pi},S_{t}\sim\mathcal{P}}\Big{%
+[}\sum_{t=0}^{\infty}\gamma^{t}R_{t}(S_{t},A_{t})\Big{]}." class="ltx_Math" display="block" id="S3.E14.m1.4">J⁢(π)=𝔼At∼π,St∼𝒫⁢[∑t=0∞γt⁢Rt⁢(St,At)].𝐽𝜋subscript𝔼formulae-sequencesimilar-tosubscript𝐴𝑡𝜋similar-tosubscript𝑆𝑡𝒫delimited-[]superscriptsubscript𝑡0superscript𝛾𝑡subscript𝑅𝑡subscript𝑆𝑡subscript𝐴𝑡J(\mathcal{\pi})=\mathbb{E}_{A_{t}\sim\mathcal{\pi},S_{t}\sim\mathcal{P}}\Big{%
+[}\sum_{t=0}^{\infty}\gamma^{t}R_{t}(S_{t},A_{t})\Big{]}.italic_J ( italic_π ) = blackboard_E start_POSTSUBSCRIPT italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ∼ italic_π , italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ∼ caligraphic_P end_POSTSUBSCRIPT [ ∑ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT ∞ end_POSTSUPERSCRIPT italic_γ start_POSTSUPERSCRIPT italic_t end_POSTSUPERSCRIPT italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) ] .
+
+(14)
+
+
+Our goal is to find the optimal policy π∗superscript𝜋\mathcal{\pi}^{*}italic_π start_POSTSUPERSCRIPT ∗ end_POSTSUPERSCRIPT for the network that maximizes J(πJ(\mathcal{\pi}italic_J ( italic_π), i.e.,
+
+
+
+
+maxπsubscript𝜋\displaystyle\max_{\mathcal{\pi}}roman_max start_POSTSUBSCRIPT italic_π end_POSTSUBSCRIPT
+J⁢(π)𝐽𝜋\displaystyle J(\mathcal{\pi})italic_J ( italic_π )
+
+(15)
+
+
+
+s.t.
+<math alttext="\displaystyle a_{t}\sim\mathcal{\pi}(A_{t}|S_{t}),S_{t+1}\sim\mathcal{P}(S_{t+%
+1}|S_{t},A_{t})," class="ltx_Math" display="inline" id="S3.E15Xa.3.2.2.m1.1">at∼π⁢(At|St),St+1∼𝒫⁢(St+1|St,At),formulae-sequencesimilar-tosubscript𝑎𝑡𝜋conditionalsubscript𝐴𝑡subscript𝑆𝑡similar-tosubscript𝑆𝑡1𝒫conditionalsubscript𝑆𝑡1subscript𝑆𝑡subscript𝐴𝑡\displaystyle a_{t}\sim\mathcal{\pi}(A_{t}|S_{t}),S_{t+1}\sim\mathcal{P}(S_{t+%
+1}|S_{t},A_{t}),italic_a start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ∼ italic_π ( italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) , italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT ∼ caligraphic_P ( italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) ,
+
+
+
+
+where 𝒫⁢(St+1|St,At)𝒫conditionalsubscript𝑆𝑡1subscript𝑆𝑡subscript𝐴𝑡\mathcal{P}(S_{t+1}|S_{t},A_{t})caligraphic_P ( italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) is the transition process from Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT to St+1subscript𝑆𝑡1S_{t+1}italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT.
+
+
+
+
+
+
+IV Challenges and Proposed Method
+
+
+
+Figure 1: Illustration of D2RL Framework. 
+
+
+In this section, we discuss the challenges encountered when applying DRL to mobile wireless communication systems. We then present the gradient analysis of the optimization problem. Finally, we introduce our proposed D2RL framework to address the identified challenges and effectively solve the problem aforementioned.
+
+
+
+IV-A Challenges of Applying DRL in Wireless Communications
+
+
+The application of DRL in wireless communications presents several fundamental challenges across its key components - state space, action space, and reward space. These challenges significantly impact the training efficiency and performance of DRL systems in practical wireless network deployments.
+
+
+
+IV-A1 Challenges for State Data Collection
+
+In wireless communication networks, the state space encompasses critical information such as CSI, QSI, and user demands, presenting significant challenges in both acquisition and management. The collection of accurate state information, particularly CSI, demands substantial computational resources and introduces considerable network overhead, especially in dynamic environments. This leads to limited training samples, impeding DRL agents’ ability to comprehend the environment and make optimal decisions. Moreover, the high-dimensional, time-varying nature of wireless network states further complicates learning and generalization. This combination of limited training data and complex state representations particularly affects the agent’s ability to generalize to unseen network conditions, potentially compromising the system’s performance in real-world deployments.
+Notably, GDMs offer a promising solution by generating realistic synthetic state samples, augmenting limited training data while preserving wireless channel statistics.
+
+
+
+
+IV-A2 Challenges for Action Space Exploration
+
+The action space in wireless communication resource allocation presents significant challenges that compound the complexity of decision-making processes. The continuous nature of wireless resource allocation variables, such as power levels and bandwidth, complicates action space exploration and optimization for DRL agents. Stringent real-time requirements necessitate swift yet optimal actions while satisfying multiple constraints, including power budgets and QoS, creating a complex multifaceted optimization problem. In this context, GDMs can provide an innovative solution by learning the underlying distribution of optimal actions, enabling more efficient exploration of the continuous action space while maintaining feasibility within the network constraints.
+
+
+
+
+IV-A3 Challenges for Reward Function Design
+
+Designing effective reward functions for wireless communications is challenging due to competing objectives like throughput, energy efficiency, and latency. Encapsulating diverse requirements into a single function is complex. While expert knowledge can provide valuable insights into reward function design, an overreliance on predetermined reward structures may inadvertently constrain the exploration space and limit the discovery of optimal solutions. This limitation is particularly evident in complex wireless scenarios where expert-designed rewards might fail to capture subtle trade-offs, potentially leading to convergence toward local optima rather than optimal solutions. Furthermore, the challenge is exacerbated by the temporal aspects of wireless networks, where the consequences of specific actions may manifest with considerable delay, complicating the design of reward functions.
+GDMs offer a practical approach by learning implicit relationships between actions and consequences, enabling nuanced and adaptive reward structures that capture wireless networks
+
+
+
+
+
+IV-B The Gradient Analysis of the Optimization Problem
+
+
+Following the MDP formulation presented in Section III B, we investigate the gradient properties of the objective function in Eq. (14) to analyze the training efficiency of DRL.
+
+
+To derive the gradient of J⁢(π)𝐽𝜋J(\pi)italic_J ( italic_π ), we employ the score function estimator (SFE) (also used as the likelihood ratio trick), which provides a fundamental relationship for computing gradients of expectations:
+
+
+
+<math alttext="\nabla\mathbb{E}_{x\sim p}[f(x)]=\mathbb{E}_{x\sim p}\left[f(x)\nabla\log p(x)%
+\right]," class="ltx_Math" display="block" id="S4.E16.m1.4">∇𝔼x∼p⁢[f⁢(x)]=𝔼x∼p⁢[f⁢(x)⁢∇log⁡p⁢(x)],∇subscript𝔼similar-to𝑥𝑝delimited-[]𝑓𝑥subscript𝔼similar-to𝑥𝑝delimited-[]𝑓𝑥∇𝑝𝑥\nabla\mathbb{E}_{x\sim p}[f(x)]=\mathbb{E}_{x\sim p}\left[f(x)\nabla\log p(x)%
+\right],∇ blackboard_E start_POSTSUBSCRIPT italic_x ∼ italic_p end_POSTSUBSCRIPT [ italic_f ( italic_x ) ] = blackboard_E start_POSTSUBSCRIPT italic_x ∼ italic_p end_POSTSUBSCRIPT [ italic_f ( italic_x ) ∇ roman_log italic_p ( italic_x ) ] ,
+
+(16)
+
+
+where p⁢(x)𝑝𝑥p(x)italic_p ( italic_x ) denotes the probability density function and f⁢(x)𝑓𝑥f(x)italic_f ( italic_x ) represents the function being evaluated under the expectation.
+
+
+In the context of policy optimization, we consider trajectories τ=(S0,A0,R0,S1,A1,R1,…)𝜏subscript𝑆0subscript𝐴0subscript𝑅0subscript𝑆1subscript𝐴1subscript𝑅1…\tau=(S_{0},A_{0},R_{0},S_{1},A_{1},R_{1},\dots)italic_τ = ( italic_S start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT , italic_S start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT , … ) generated by policy π𝜋\piitalic_π under the environment dynamics. The probability over trajectories, assuming the Markov property, follows as:
+
+
+
+<math alttext="p(\tau)=p(S_{0})\prod_{t=0}^{\infty}\pi(A_{t}|S_{t})\mathcal{P}(S_{t+1}|S_{t},%
+A_{t})," class="ltx_Math" display="block" id="S4.E17.m1.2">p⁢(τ)=p⁢(S0)⁢∏t=0∞π⁢(At|St)⁢𝒫⁢(St+1|St,At),𝑝𝜏𝑝subscript𝑆0superscriptsubscriptproduct𝑡0𝜋conditionalsubscript𝐴𝑡subscript𝑆𝑡𝒫conditionalsubscript𝑆𝑡1subscript𝑆𝑡subscript𝐴𝑡p(\tau)=p(S_{0})\prod_{t=0}^{\infty}\pi(A_{t}|S_{t})\mathcal{P}(S_{t+1}|S_{t},%
+A_{t}),italic_p ( italic_τ ) = italic_p ( italic_S start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT ) ∏ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT ∞ end_POSTSUPERSCRIPT italic_π ( italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) caligraphic_P ( italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) ,
+
+(17)
+
+
+where p⁢(S0)𝑝subscript𝑆0p(S_{0})italic_p ( italic_S start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT ) denotes the initial state distribution, π⁢(At|St)𝜋conditionalsubscript𝐴𝑡subscript𝑆𝑡\pi(A_{t}|S_{t})italic_π ( italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) represents the policy’s action probability distribution, and 𝒫⁢(St+1|St,At)𝒫conditionalsubscript𝑆𝑡1subscript𝑆𝑡subscript𝐴𝑡\mathcal{P}(S_{t+1}|S_{t},A_{t})caligraphic_P ( italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) describes the environment’s transition dynamics. Note that we consider a finite horizon T𝑇Titalic_T for practical implementation, though the theoretical framework extends to the infinite horizon case under appropriate regularity conditions.
+
+
+The objective function can be expressed as an expectation over trajectories:
+
+
+
+J⁢(π)=∫τp⁢(τ)⁢∑t=0∞γt⁢Rt⁢(St,At).𝐽𝜋subscript𝜏𝑝𝜏superscriptsubscript𝑡0superscript𝛾𝑡subscript𝑅𝑡subscript𝑆𝑡subscript𝐴𝑡J(\pi)=\int_{\tau}p(\tau)\sum_{t=0}^{\infty}\gamma^{t}R_{t}(S_{t},A_{t}).italic_J ( italic_π ) = ∫ start_POSTSUBSCRIPT italic_τ end_POSTSUBSCRIPT italic_p ( italic_τ ) ∑ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT ∞ end_POSTSUPERSCRIPT italic_γ start_POSTSUPERSCRIPT italic_t end_POSTSUPERSCRIPT italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) .
+
+(18)
+
+
+Under suitable regularity conditions that ensure the interchange of differentiation and integration (Leibniz integral rule), the gradient of J⁢(π)𝐽𝜋J(\pi)italic_J ( italic_π ) can be derived as follows:
+
+
+
+
+
+<math alttext="\nabla J(\pi)=\int_{\tau}\nabla p(\tau)\sum_{t=0}^{T}\gamma^{t}R_{t}(S_{t},A_{%
+t})." class="ltx_Math" display="block" id="S4.E19.m1.3">∇J⁢(π)=∫τ∇p⁢(τ)⁢∑t=0Tγt⁢Rt⁢(St,At).∇𝐽𝜋subscript𝜏∇𝑝𝜏superscriptsubscript𝑡0𝑇superscript𝛾𝑡subscript𝑅𝑡subscript𝑆𝑡subscript𝐴𝑡\nabla J(\pi)=\int_{\tau}\nabla p(\tau)\sum_{t=0}^{T}\gamma^{t}R_{t}(S_{t},A_{%
+t}).∇ italic_J ( italic_π ) = ∫ start_POSTSUBSCRIPT italic_τ end_POSTSUBSCRIPT ∇ italic_p ( italic_τ ) ∑ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_T end_POSTSUPERSCRIPT italic_γ start_POSTSUPERSCRIPT italic_t end_POSTSUPERSCRIPT italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) .
+
+(19)
+
+
+Applying the SFE and noting that the environment dynamics 𝒫𝒫\mathcal{P}caligraphic_P are independent of policy parameters, we obtain:
+
+
+
+
+
+<math alttext="\nabla J(\pi)=\mathbb{E}_{\pi}\left[\sum_{t=0}^{T}\nabla\log\pi(A_{t}|S_{t})G_%
+{t}\right]," class="ltx_Math" display="block" id="S4.E20.m1.2">∇J⁢(π)=𝔼π⁢[∑t=0T∇log⁡π⁢(At|St)⁢Gt],∇𝐽𝜋subscript𝔼𝜋delimited-[]superscriptsubscript𝑡0𝑇∇𝜋conditionalsubscript𝐴𝑡subscript𝑆𝑡subscript𝐺𝑡\nabla J(\pi)=\mathbb{E}_{\pi}\left[\sum_{t=0}^{T}\nabla\log\pi(A_{t}|S_{t})G_%
+{t}\right],∇ italic_J ( italic_π ) = blackboard_E start_POSTSUBSCRIPT italic_π end_POSTSUBSCRIPT [ ∑ start_POSTSUBSCRIPT italic_t = 0 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_T end_POSTSUPERSCRIPT ∇ roman_log italic_π ( italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT | italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) italic_G start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ] ,
+
+(20)
+
+
+where Gt=∑k=tTγk−t⁢Rksubscript𝐺𝑡superscriptsubscript𝑘𝑡𝑇superscript𝛾𝑘𝑡subscript𝑅𝑘G_{t}=\sum_{k=t}^{T}\gamma^{k-t}R_{k}italic_G start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT = ∑ start_POSTSUBSCRIPT italic_k = italic_t end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_T end_POSTSUPERSCRIPT italic_γ start_POSTSUPERSCRIPT italic_k - italic_t end_POSTSUPERSCRIPT italic_R start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT represents the discounted cumulative return from time step t𝑡titalic_t.
+
+
+The derived gradient formulation elucidates several fun-
+damental factors that substantially influence the training ef-
+ficiency of DRL. The analysis of Eq. (20) reveals that the policy gradient magnitude is directly proportional to the log-probability gradients of the policy’s action selection and the corresponding cumulative returns. Fluctuations in the state-action space topology or reward distribution can substantially impact gradient updates, affecting DRL training efficiency and stability. This motivates investigating the action space, state space, and reward space to determine the learning process’s efficiency and stability.
+
+
+
+
+IV-C Proposed Diffusion-based DRL (D2RL) Framework
+
+
+The proposed D2RL framework systematically explores the action, state, and reward spaces to guide the agent in making more informed and efficient decisions, ultimately optimizing its performance.
+
+
+The overall architecture of D2RL is shown in Fig. 1.
+
+
+
+IV-C1 Different Modes of GDMs
+
+Based on the accessibility of the original dataset, the two different GDMs modes can be proposed to the explore these three spaces in DRL.
+
+
+•
+
+Mode I:
+Mode I is specifically designed for scenarios where an original dataset is unavailable, relying solely on the reverse process of GDM. As illustrated in Fig. 1, Mode I begins by generating random Gaussian noise as the input for step-P𝑃Pitalic_P. Subsequently, the noise predictor Neural Network (NPNN) is iteratively utilized to estimate the noise at the current step. This estimated noise is then subtracted from the data at step-p𝑝pitalic_p to derive the data for step-(p−1)𝑝1(p-1)( italic_p - 1 ), where p∈[1,P]𝑝1𝑃p\in[1,P]italic_p ∈ [ 1 , italic_P ]. This process continues iteratively until the denoised data at step-00, denoted as X0superscript𝑋0X^{0}italic_X start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT, is obtained. The objective of the NPNN for Mode I is mathematically formulated as:
+
+
+
+<math alttext="\arg\min_{\epsilon_{\text{Mod}_{\text{I}}}}\mathcal{L}_{\epsilon}=-\mathbb{E}_%
+{\epsilon_{\text{Mod}_{\text{I}}}}\left[Q\right]," class="ltx_Math" display="block" id="S4.E21.m1.2">arg⁡minϵModI⁡ℒϵ=−𝔼ϵModI⁢[Q],subscriptsubscriptitalic-ϵsubscriptModIsubscriptℒitalic-ϵsubscript𝔼subscriptitalic-ϵsubscriptModIdelimited-[]𝑄\arg\min_{\epsilon_{\text{Mod}_{\text{I}}}}\mathcal{L}_{\epsilon}=-\mathbb{E}_%
+{\epsilon_{\text{Mod}_{\text{I}}}}\left[Q\right],roman_arg roman_min start_POSTSUBSCRIPT italic_ϵ start_POSTSUBSCRIPT Mod start_POSTSUBSCRIPT I end_POSTSUBSCRIPT end_POSTSUBSCRIPT end_POSTSUBSCRIPT caligraphic_L start_POSTSUBSCRIPT italic_ϵ end_POSTSUBSCRIPT = - blackboard_E start_POSTSUBSCRIPT italic_ϵ start_POSTSUBSCRIPT Mod start_POSTSUBSCRIPT I end_POSTSUBSCRIPT end_POSTSUBSCRIPT end_POSTSUBSCRIPT [ italic_Q ] ,
+
+(21)
+
+
+which aims to optimize the Q-value.
+
+
+Specifically, Mode I is used to explore the action and reward spaces, facilitating the agent’s learning process in the absence of an original dataset. This approach enables the agent to gradually refine its decision-making process through reverse exploration, ultimately guiding it towards more efficient actions and better reward expressions.
+
+
+
+•
+
+Mode II:
+Mode II is applicable when an original dataset is available. It involves a multi-step forward proceduress applied to the original data, followed by a reverse process using the noise predictor to generate new data. The generated data can then be used to augment the original dataset. For instance, at step-p𝑝pitalic_p of the forward process, the sum of Xpsuperscript𝑋𝑝X^{p}italic_X start_POSTSUPERSCRIPT italic_p end_POSTSUPERSCRIPT and randomly generated noise ϵp+1subscriptitalic-ϵ𝑝1\epsilon_{p+1}italic_ϵ start_POSTSUBSCRIPT italic_p + 1 end_POSTSUBSCRIPT serves as the noisy data Xp+1superscript𝑋𝑝1X^{p+1}italic_X start_POSTSUPERSCRIPT italic_p + 1 end_POSTSUPERSCRIPT for step-(p+1)𝑝1(p+1)( italic_p + 1 ), p∈[0,P−1]𝑝0𝑃1p\in[0,P-1]italic_p ∈ [ 0 , italic_P - 1 ]. Upon completion of the noise addition, the noisy data from step-P𝑃Pitalic_P serves as the initial input for the reverse process. This process follows the same steps as in Mode I to generate the data, denoted as X^0superscript^𝑋0\hat{X}^{0}over^ start_ARG italic_X end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT. The optimization objective of the NPNN in Mode II can be mathematically represented as:
+
+
+
+<math alttext="\arg\min_{\epsilon_{\text{Mod}_{\text{II}}}}\mathcal{L}=\mathbb{E}\left[\left%
+\|\epsilon-\epsilon_{{\text{Mod}_{\text{II}}}}\right\|^{2}\right]," class="ltx_Math" display="block" id="S4.E22.m1.1">arg⁡minϵModII⁡ℒ=𝔼⁢[‖ϵ−ϵModII‖2],subscriptsubscriptitalic-ϵsubscriptModIIℒ𝔼delimited-[]superscriptnormitalic-ϵsubscriptitalic-ϵsubscriptModII2\arg\min_{\epsilon_{\text{Mod}_{\text{II}}}}\mathcal{L}=\mathbb{E}\left[\left%
+\|\epsilon-\epsilon_{{\text{Mod}_{\text{II}}}}\right\|^{2}\right],roman_arg roman_min start_POSTSUBSCRIPT italic_ϵ start_POSTSUBSCRIPT Mod start_POSTSUBSCRIPT II end_POSTSUBSCRIPT end_POSTSUBSCRIPT end_POSTSUBSCRIPT caligraphic_L = blackboard_E [ ∥ italic_ϵ - italic_ϵ start_POSTSUBSCRIPT Mod start_POSTSUBSCRIPT II end_POSTSUBSCRIPT end_POSTSUBSCRIPT ∥ start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT ] ,
+
+(22)
+
+
+which aims to minimize the difference between the predicted noise during the reverse process and the noise added during the forward process.
+
+
+Mode II is employed to explore the state space by leveraging both the original and generated data, enhancing the agent’s decision-making through comprehensive state exploration.
+
+
+
+
+
+We now provide a comprehensive overview of the D2RL framework. As depicted in Fig. 1, the framework consists of two primary components: the environment and the DRL agent. On the left side, the environment is coupled with the proposed reward exploration network111In practical applications, this can be executed in the environment (i.e., the computational unit) before being sent to the agent. and the state exploration network. On the right side, the DRL agent interacts with the environment. To be noticed, the DRL can be any algorithm (e.g., DDPG, A2C, A3C). For illustrative purposes, we use DDPG as the baseline algorithm. The DDPG framework consists of several key components that collaborate to optimize the agent’s strategy.
+
+
+
+
+IV-C2 State Exploration Network
+
+To accelerate the learning process and uncover information that current state data may not capture, we propose utilizing the existing state dataset to generate new data using Mode II. Our approach involves training a State Exploration NPNN (SENPNN), denoted as ϵϖsubscriptitalic-ϵitalic-ϖ\epsilon_{\varpi}italic_ϵ start_POSTSUBSCRIPT italic_ϖ end_POSTSUBSCRIPT, using the original state information S0superscript𝑆0S^{0}italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT collected from the environment at each time step. The SENPNN generates an explored state S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT through Mode II, which is then integrated into the DRL training process.
+During the training phase, the agent selects either the newly generated state S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT with a substitute probability (SP) of χ𝜒\chiitalic_χ or the original state S0superscript𝑆0S^{0}italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT with a probability of 1−χ1𝜒1-\chi1 - italic_χ as the current state information Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT received from the environment. Based on the selected state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, the agent generates a corresponding action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT and provides feedback to the environment, which in turn yields a reward Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on the action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT.
+
+
+It is crucial to acknowledge that during the early stages of SENPNN training, the newly generated state S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT may not closely resemble the original state S0superscript𝑆0S^{0}italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT. Consequently, a high probability of selecting S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT during this phase can severely impair the training efficiency of the DRL model. To mitigate this issue, we propose a training mechanism that gradually increases the value of χ𝜒\chiitalic_χ. Initially, χ𝜒\chiitalic_χ is set to 0, and as the training epochs progress, χ𝜒\chiitalic_χ grows at an update rate of η𝜂\etaitalic_η when the loss function value of the SENPNN falls below a predefined threshold 𝒯𝒯\mathcal{T}caligraphic_T. Furthermore, we define a maximum replacement probability ℳℳ\mathcal{M}caligraphic_M for S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT, which satisfies the condition χ=min⁡(χ+η,ℳ)𝜒𝜒𝜂ℳ\chi=\min(\chi+\eta,\mathcal{M})italic_χ = roman_min ( italic_χ + italic_η , caligraphic_M ).
+
+
+The proposed methodology enables the DRL model to leverage the benefits of GDM-based state exploration while maintaining the stability and effectiveness of the training process. By incorporating the explored states S^0superscript^𝑆0\hat{S}^{0}over^ start_ARG italic_S end_ARG start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT generated by the SENPNN, the agent can uncover valuable information that may not be captured by the current state data, leading to enhanced performance and faster convergence of the DRL model. The complete algorithm for GDM-based state exploration is presented in Algorithm 1.
+
+
+
+
+IV-C3 Action Exploration Network
+
+When the agent receives the state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT from the environment, as shown in Fig. 1, it generates an action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT by employing the GDM exploration method of Mode I. The process involves training an Action Exploration NPNN (AENPNN), denoted as ϵϑsubscriptitalic-ϵitalic-ϑ\epsilon_{\vartheta}italic_ϵ start_POSTSUBSCRIPT italic_ϑ end_POSTSUBSCRIPT, which takes a combination of the current state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT and a randomly generated Gaussian noise APsuperscript𝐴𝑃A^{P}italic_A start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT as the input.
+The AENPNN operates by first concatenating the current state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT with the Gaussian noise APsuperscript𝐴𝑃A^{P}italic_A start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT. This combined input then undergoes P𝑃Pitalic_P steps of the GDM reverse process, which is a critical component of the exploration method. The GDM reverse process iteratively refines the input, allowing the AENPNN to generate an action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT that is based on the current state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT but also incorporates exploratory behavior induced by the Gaussian noise APsuperscript𝐴𝑃A^{P}italic_A start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT.
+
+
+
+
+IV-C4 Reward Exploration Network
+
+When the environment receives the agent’s action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, it evaluates the action and assigns a score, thereby providing feedback to the agent for generating better actions in the future. As depicted in Fig. 1, we employ the GDM exploration method of Mode I to generate the reward Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, which serves as a critical component of the agent’s learning process. The reward generation process involves training a Reward Exploration NPNN (RENPNN), denoted as ϵςsubscriptitalic-ϵ𝜍\epsilon_{\varsigma}italic_ϵ start_POSTSUBSCRIPT italic_ς end_POSTSUBSCRIPT. The RENPNN takes a combination of the current state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, the action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, and a randomly generated Gaussian noise RPsuperscript𝑅𝑃R^{P}italic_R start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT as input. By incorporating the state-action pair (St,At)subscript𝑆𝑡subscript𝐴𝑡(S_{t},A_{t})( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) along with the Gaussian noise RPsuperscript𝑅𝑃R^{P}italic_R start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT, the RENPNN can generate rewards that consider both the current context and exploratory variations. The input to the RENPNN undergoes P𝑃Pitalic_P steps of the GDM reverse process, which is a key aspect of the exploration method. The GDM reverse process iteratively refines the input, allowing the RENPNN to generate a reward Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT that is conditioned on the current state Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT and action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT while incorporating exploratory behavior induced by the Gaussian noise RPsuperscript𝑅𝑃R^{P}italic_R start_POSTSUPERSCRIPT italic_P end_POSTSUPERSCRIPT. The generated reward Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, along with the new state St+1subscript𝑆𝑡1S_{t+1}italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT produced by the environment based on the agent’s action, is then fed back to the agent. This feedback loop enables the agent to learn and adapt its behavior over time, seeking to maximize the cumulative rewards obtained during the interaction with the environment.
+
+
+Algorithm 1  GDM-based State Exploration Algorithm
+
+
+Input: original state 𝑺0superscript𝑺0\bm{S}^{0}bold_italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT, GDM exploration strategy Mode II, SENPNN parameters ϖitalic-ϖ\varpiitalic_ϖ, update rate η𝜂\etaitalic_η, maximum replacement probability ℳℳ\mathcal{M}caligraphic_M, diffusion step P𝑃Pitalic_P, initial SP χ=0𝜒0\chi=0italic_χ = 0.
+
+
+Set the loss threshold for SENPNN training 𝒯𝒯\mathcal{T}caligraphic_T.
+
+
+Generate ^⁢S0bold-^absentsuperscript𝑆0\bm{\hat{}}{S}^{0}overbold_^ start_ARG end_ARG italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT using 𝑺0superscript𝑺0\bm{S}^{0}bold_italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT and Mode II.
+
+
+
+if SENPNN loss ℒ⁢(𝑺0,^⁢S0)&lt;𝒯ℒsuperscript𝑺0bold-^absentsuperscript𝑆0𝒯\mathcal{L}(\bm{S}^{0},\bm{\hat{}}{S}^{0})&lt;\mathcal{T}caligraphic_L ( bold_italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT , overbold_^ start_ARG end_ARG italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT ) &lt; caligraphic_T then
+
+   Increase exploration probability: χ←min⁡(χ+η,ℳ)←𝜒𝜒𝜂ℳ\chi\leftarrow\min(\chi+\eta,\mathcal{M})italic_χ ← roman_min ( italic_χ + italic_η , caligraphic_M ).
+
+
+
+end if
+
+Select current state 𝑺tsubscript𝑺𝑡\bm{S}_{t}bold_italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on χ𝜒\chiitalic_χ:
+
+
+
+if random number r≤χ𝑟𝜒r\leq\chiitalic_r ≤ italic_χ then
+
+   Use the explored state: 𝑺t=^⁢S0subscript𝑺𝑡bold-^absentsuperscript𝑆0\bm{S}_{t}=\bm{\hat{}}{S}^{0}bold_italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT = overbold_^ start_ARG end_ARG italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT.
+
+
+
+else
+
+   Use the original state: 𝑺t=𝑺0subscript𝑺𝑡superscript𝑺0\bm{S}_{t}=\bm{S}^{0}bold_italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT = bold_italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT.
+
+
+
+end if
+
+Generate corresponding action Atsubscript𝐴𝑡A_{t}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT.
+
+
+Provide feedback to the environment to get reward Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT.
+
+
+
+
+
+When the agent receives St+1subscript𝑆𝑡1S_{t+1}italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT and Rtsubscript𝑅𝑡R_{t}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, it records (St,At,St+1,Rt)subscript𝑆𝑡subscript𝐴𝑡subscript𝑆𝑡1subscript𝑅𝑡(S_{t},A_{t},S_{t+1},R_{t})( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) into the replay memory buffer. The above steps are iterated until the agent learns the policy.
+At each time step, the agent takes a mini-batch ℬ=(Sj,Aj,Sj+1,Rj)ℬsubscript𝑆𝑗subscript𝐴𝑗subscript𝑆𝑗1subscript𝑅𝑗\mathcal{B}=(S_{j},A_{j},S_{j+1},R_{j})caligraphic_B = ( italic_S start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , italic_S start_POSTSUBSCRIPT italic_j + 1 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT ) of data at a time from the replay memory buffer to update the policy[38]. In order to mitigate the problem of overestimation bias of single critic, D2RL framework uses double critic network, which consists of two separate critic networks, Q1,ξ1subscript𝑄1subscript𝜉1Q_{1,\xi_{1}}italic_Q start_POSTSUBSCRIPT 1 , italic_ξ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT end_POSTSUBSCRIPT and Q2,ξ2subscript𝑄2subscript𝜉2Q_{2,\xi_{2}}italic_Q start_POSTSUBSCRIPT 2 , italic_ξ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT end_POSTSUBSCRIPT, each responsible for independently estimating the Q-value, which represents the expected cumulative reward given the current state and action:
+
+
+
+Q⁢(Sj,Aj)=𝔼⁢[R+γ⋅Q⁢(Sj+1,Aj+1)],𝑄subscript𝑆𝑗subscript𝐴𝑗𝔼delimited-[]𝑅⋅𝛾𝑄subscript𝑆𝑗1subscript𝐴𝑗1Q(S_{j},A_{j})=\mathbb{E}\left[R+\gamma\cdot Q(S_{j+1},A_{j+1})\right],italic_Q ( italic_S start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT ) = blackboard_E [ italic_R + italic_γ ⋅ italic_Q ( italic_S start_POSTSUBSCRIPT italic_j + 1 end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_j + 1 end_POSTSUBSCRIPT ) ] ,
+
+(23)
+
+
+where γ𝛾\gammaitalic_γ is the discount factor used to measure the importance of future rewards.
+During training, both critic network parameters ξ={ξ1,ξ2}𝜉subscript𝜉1subscript𝜉2\xi=\{\xi_{1},\xi_{2}\}italic_ξ = { italic_ξ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT , italic_ξ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT } are updated, but the minimum of the two Q-values is chosen to update the actor network, which reduces overestimation by ensuring that the agent relies on the more conservative Q-value estimate.
+
+
+In addition, D2RL framework uses target networks to enhance training stability by freezing their parameters during gradient descent and updating them slowly via a soft update mechanism, denoted as
+
+
+
+
+
+<math alttext="\displaystyle\hat{\vartheta}_{e+1}\leftarrow\tau\vartheta_{e}+(1-\tau)\hat{%
+\vartheta}_{e}," class="ltx_Math" display="inline" id="S4.E24X.2.1.1.m1.1">ϑ^e+1←τ⁢ϑe+(1−τ)⁢ϑ^e,←subscript^italic-ϑ𝑒1𝜏subscriptitalic-ϑ𝑒1𝜏subscript^italic-ϑ𝑒\displaystyle\hat{\vartheta}_{e+1}\leftarrow\tau\vartheta_{e}+(1-\tau)\hat{%
+\vartheta}_{e},over^ start_ARG italic_ϑ end_ARG start_POSTSUBSCRIPT italic_e + 1 end_POSTSUBSCRIPT ← italic_τ italic_ϑ start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT + ( 1 - italic_τ ) over^ start_ARG italic_ϑ end_ARG start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT ,
+
+(24)
+
+
+
+
+ξ^e+1←τ⁢ξe+(1−τ)⁢ξ^e,←subscript^𝜉𝑒1𝜏subscript𝜉𝑒1𝜏subscript^𝜉𝑒\displaystyle\hat{\xi}_{e+1}\leftarrow\tau\xi_{e}+(1-\tau)\hat{\xi}_{e},over^ start_ARG italic_ξ end_ARG start_POSTSUBSCRIPT italic_e + 1 end_POSTSUBSCRIPT ← italic_τ italic_ξ start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT + ( 1 - italic_τ ) over^ start_ARG italic_ξ end_ARG start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT ,
+
+
+
+
+where ϑ^esubscript^italic-ϑ𝑒\hat{\vartheta}_{e}over^ start_ARG italic_ϑ end_ARG start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT and ξ^esubscript^𝜉𝑒\hat{\xi}_{e}over^ start_ARG italic_ξ end_ARG start_POSTSUBSCRIPT italic_e end_POSTSUBSCRIPT are the parameters of the target actor network and target critic network during the e𝑒eitalic_e-th epoch, respectively, and τ∈(0,1]𝜏01\tau\in(0,1]italic_τ ∈ ( 0 , 1 ] controls the frequency at which the target network is updated[39].
+
+
+The pseudocode of the algorithm proposed for the D2RL framework is shown in Algorithm 2.
+
+
+Algorithm 2  Diffusion-based DRL (D2RL)
+
+
+Initiate: Initialize critic-network parameters ξ1subscript𝜉1\xi_{1}italic_ξ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT and ξ2subscript𝜉2\xi_{2}italic_ξ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT, target-critic-network parameters ξ^←min⁡(ξ1,ξ2)←^𝜉subscript𝜉1subscript𝜉2\hat{\xi}\leftarrow\min(\xi_{1},\xi_{2})over^ start_ARG italic_ξ end_ARG ← roman_min ( italic_ξ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT , italic_ξ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT ), SENPNN parameters ϖitalic-ϖ\varpiitalic_ϖ, AENPNN parameters ϑitalic-ϑ\varthetaitalic_ϑ, target-AENPNN parameters ϑ^←ϑ←^italic-ϑitalic-ϑ\hat{\vartheta}\leftarrow\varthetaover^ start_ARG italic_ϑ end_ARG ← italic_ϑ, RENPNN parameters ς𝜍\varsigmaitalic_ς, and experience replay buffer 𝒟𝒟\mathcal{D}caligraphic_D.
+
+
+
+Input: GDM exploration strategy Mode I, II.
+
+
+
+for the training epoch e=1𝑒1e=1italic_e = 1 to E𝐸Eitalic_E do
+
+   for the collected experiences t=1𝑡1t=1italic_t = 1 to T𝑇Titalic_T do
+
+      Observe the state S0superscript𝑆0{S^{0}}italic_S start_POSTSUPERSCRIPT 0 end_POSTSUPERSCRIPT from the environment.
+
+
+      Obtain Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT using Algorithm 1, action Atsubscript𝐴𝑡{A_{t}}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on Mode I and Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT, reward Rtsubscript𝑅𝑡{R_{t}}italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT based on Mode II, Stsubscript𝑆𝑡S_{t}italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT and Atsubscript𝐴𝑡{A_{t}}italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT.
+
+
+      Obtain the next state St+1subscript𝑆𝑡1{S_{t+1}}italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT.
+
+
+      Record experience tuple (St,At,St+1,Rt)subscript𝑆𝑡subscript𝐴𝑡subscript𝑆𝑡1subscript𝑅𝑡(S_{t},A_{t},S_{t+1},R_{t})( italic_S start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT , italic_S start_POSTSUBSCRIPT italic_t + 1 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ) in replay memory buffer 𝒟𝒟\mathcal{D}caligraphic_D.
+
+
+   end for
+
+   Extract a batch of experiences ℬ=(Sj,Aj,Sj+1,Rj)ℬsubscript𝑆𝑗subscript𝐴𝑗subscript𝑆𝑗1subscript𝑅𝑗\mathcal{B}=(S_{j},A_{j},S_{j+1},R_{j})caligraphic_B = ( italic_S start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , italic_A start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT , italic_S start_POSTSUBSCRIPT italic_j + 1 end_POSTSUBSCRIPT , italic_R start_POSTSUBSCRIPT italic_j end_POSTSUBSCRIPT ) from the experience replay buffer 𝒟𝒟\mathcal{D}caligraphic_D for optimization;
+
+
+   Update the SENPNN parameters ϖitalic-ϖ\varpiitalic_ϖ, AENPNN parameters ϑitalic-ϑ\varthetaitalic_ϑ, double critic network parameters ξ1subscript𝜉1\xi_{1}italic_ξ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT and ξ2subscript𝜉2\xi_{2}italic_ξ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT, RENPNN parameters ς𝜍\varsigmaitalic_ς.
+
+
+   Perform a soft update of the target network parameters ϑ^,ξ^^italic-ϑ^𝜉\hat{\vartheta},\hat{\xi}over^ start_ARG italic_ϑ end_ARG , over^ start_ARG italic_ξ end_ARG using Eq. (24).
+
+
+
+end for
+
+Return the optimal policy.
+
+
+
+
+
+
+
+
+
+V Evaluation
+
+
+In this section, we evaluate the performance of the proposed D2RL framework in addressing the total data rate maximization problem.
+
+
+TABLE I: Environment setup
+
+
+Parameters
+Value
+
+
+Cell radius M𝑀Mitalic_M
+
+300 m
+
+
+Number of downlink users K𝐾Kitalic_K
+
+6
+
+
+Number of uplink users L𝐿Litalic_L
+
+4
+
+
+Height of BS
+100 m
+
+
+Pathloss exponent α𝛼\alphaitalic_α
+
+3.6
+
+
+Noise power σk2,σr2superscriptsubscript𝜎𝑘2superscriptsubscript𝜎𝑟2\sigma_{k}^{2},\sigma_{r}^{2}italic_σ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT , italic_σ start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT
+
+-97 dBm/Hz
+
+
+Number of transmit antenna Ntsubscript𝑁𝑡N_{t}italic_N start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT
+
+6
+
+
+Number of receive antenna Nrsubscript𝑁𝑟N_{r}italic_N start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT
+
+6
+
+
+Channel gain ρ0subscript𝜌0\rho_{0}italic_ρ start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT
+
+4.16×10−64.16superscript1064.16\times 10^{-6}4.16 × 10 start_POSTSUPERSCRIPT - 6 end_POSTSUPERSCRIPT
+
+
+Maximum BS transmit power Pmaxsubscript𝑃maxP_{\text{max}}italic_P start_POSTSUBSCRIPT max end_POSTSUBSCRIPT
+
+3 W
+
+
+
+
+
+
+Maximum transmit power of
+
+uplink users {Pl}l=1Lsuperscriptsubscriptsubscript𝑃𝑙𝑙1𝐿\{P_{l}\}_{l=1}^{L}{ italic_P start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT } start_POSTSUBSCRIPT italic_l = 1 end_POSTSUBSCRIPT start_POSTSUPERSCRIPT italic_L end_POSTSUPERSCRIPT
+
+1 W
+
+
+
+
+TABLE II: Simulation parameters for the proposed D2RL
+
+
+
+Parameters
+Value
+Parameters
+Value
+
+
+
+
+
+
+HL number
+
+of AENPNN
+
+&amp;\&amp;&amp; SENPNN
+
+4
+
+
+
+
+HL number
+
+of RENPNN
+
+5
+
+
+
+
+
+
+Number of HL
+
+neurons
+
+256
+Weight decay
+7×10−57superscript1057\times 10^{-5}7 × 10 start_POSTSUPERSCRIPT - 5 end_POSTSUPERSCRIPT
+
+
+
+
+
+
+Learning rate
+
+of AENPNN
+
+&amp;\&amp;&amp; RENPNN
+
+5×10−55superscript1055\times 10^{-5}5 × 10 start_POSTSUPERSCRIPT - 5 end_POSTSUPERSCRIPT
+
+
+
+
+Learning rate
+
+of SENPNN
+
+1×10−41superscript1041\times 10^{-4}1 × 10 start_POSTSUPERSCRIPT - 4 end_POSTSUPERSCRIPT
+
+
+𝒯𝒯\mathcal{T}caligraphic_T
+5×10−45superscript1045\times 10^{-4}5 × 10 start_POSTSUPERSCRIPT - 4 end_POSTSUPERSCRIPT
+
+ϵitalic-ϵ\epsilonitalic_ϵ-greedy ϵitalic-ϵ\epsilonitalic_ϵ
+
+0.1
+
+
+Soft update τ𝜏\tauitalic_τ
+
+5×10−35superscript1035\times 10^{-3}5 × 10 start_POSTSUPERSCRIPT - 3 end_POSTSUPERSCRIPT
+γ𝛾\gammaitalic_γ
+1
+
+
+Diffusion steps
+6
+Batch size ℬℬ\mathcal{B}caligraphic_B
+
+256
+
+
+Buffer size
+105superscript10510^{5}10 start_POSTSUPERSCRIPT 5 end_POSTSUPERSCRIPT
+Optimizer
+ADAM
+
+
+
+
+
+
+
+•
+
+HL: Hidden Layer
+
+
+
+
+
+
+
+
+V-A Experimental Settings
+
+
+
+V-A1 Simulation Setting
+
+It is assumed that
+F=2𝐹2F=2italic_F = 2 interferers are located at θ1=−50∘subscript𝜃1superscript50\theta_{1}=-50^{\circ}italic_θ start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT = - 50 start_POSTSUPERSCRIPT ∘ end_POSTSUPERSCRIPT and θ2=20∘subscript𝜃2superscript20\theta_{2}=20^{\circ}italic_θ start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT = 20 start_POSTSUPERSCRIPT ∘ end_POSTSUPERSCRIPT,
+respectively. The channel gain of the two interferers are set to <math alttext="\frac{|\beta_{1}|^{2}}{\sigma_{r}^{2}}=\frac{|\beta_{2}|^{2}}{\sigma_{r}^{2}}=%
+20\ \text{dB}" class="ltx_Math" display="inline" id="S5.SS1.SSS1.p1.4.m4.2">|β1|2σr2=|β2|2σr2=20⁢dBsuperscriptsubscript𝛽12superscriptsubscript𝜎𝑟2superscriptsubscript𝛽22superscriptsubscript𝜎𝑟220dB\frac{|\beta_{1}|^{2}}{\sigma_{r}^{2}}=\frac{|\beta_{2}|^{2}}{\sigma_{r}^{2}}=%
+20\ \text{dB}divide start_ARG | italic_β start_POSTSUBSCRIPT 1 end_POSTSUBSCRIPT | start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG start_ARG italic_σ start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG = divide start_ARG | italic_β start_POSTSUBSCRIPT 2 end_POSTSUBSCRIPT | start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG start_ARG italic_σ start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT start_POSTSUPERSCRIPT 2 end_POSTSUPERSCRIPT end_ARG = 20 dB [3]. The channel model for the users is assumed to follow a line-of-sight (LoS) path. Specifically, for uplink users, the channel gain is modeled as hl=ρ0⁢dl−α⁢𝐚r⁢(θlUL),∀lsubscriptℎ𝑙subscript𝜌0superscriptsubscript𝑑𝑙𝛼subscript𝐚𝑟superscriptsubscript𝜃𝑙ULfor-all𝑙h_{l}=\rho_{0}d_{l}^{-\alpha}\mathbf{a}_{r}(\theta_{l}^{\text{UL}}),\forall litalic_h start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT = italic_ρ start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT italic_d start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT - italic_α end_POSTSUPERSCRIPT bold_a start_POSTSUBSCRIPT italic_r end_POSTSUBSCRIPT ( italic_θ start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT UL end_POSTSUPERSCRIPT ) , ∀ italic_l, where ρ0subscript𝜌0\rho_{0}italic_ρ start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT is the channel gain at the reference distance d0=1⁢msubscript𝑑01md_{0}=1~{}\text{m}italic_d start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT = 1 m, dlsubscript𝑑𝑙d_{l}italic_d start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT is the distance between uplink user l𝑙litalic_l and the BS, α𝛼\alphaitalic_α is the path-loss exponent, and θlULsuperscriptsubscript𝜃𝑙UL\theta_{l}^{\text{UL}}italic_θ start_POSTSUBSCRIPT italic_l end_POSTSUBSCRIPT start_POSTSUPERSCRIPT UL end_POSTSUPERSCRIPT is the angle of user l𝑙litalic_l relative to the BS[40]. Similarly, for downlink users, the channel gain is represented as gk=ρ0⁢dk−α⁢𝐚t⁢(θkDL),∀ksubscript𝑔𝑘subscript𝜌0superscriptsubscript𝑑𝑘𝛼subscript𝐚𝑡superscriptsubscript𝜃𝑘DLfor-all𝑘g_{k}=\rho_{0}d_{k}^{-\alpha}\mathbf{a}_{t}(\theta_{k}^{\text{DL}}),\forall kitalic_g start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT = italic_ρ start_POSTSUBSCRIPT 0 end_POSTSUBSCRIPT italic_d start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT - italic_α end_POSTSUPERSCRIPT bold_a start_POSTSUBSCRIPT italic_t end_POSTSUBSCRIPT ( italic_θ start_POSTSUBSCRIPT italic_k end_POSTSUBSCRIPT start_POSTSUPERSCRIPT DL end_POSTSUPERSCRIPT ) , ∀ italic_k. A summary of the key simulation parameters is provided in Table I. The supplementary for the hyperparameter settings are in Table II.
+
+
+
+
+V-A2 Baseline Setting
+
+We adopt the model architecture proposed by [17], which explores the action space, and apply it to our FD mobile wireless communication network. To evaluate the effectiveness of the proposed approach, we conduct a comparative analysis of two distinct scenarios:
+
+
+•
+
+A. w/o GDM: The action is generated based on a traditional NN.
+
+
+
+•
+
+A. w/ GDM: The action space is explored using GDMs.
+
+
+
+
+
+
+
+V-A3 Reward Exploration Setting
+
+While preserving the AENPNN, we further investigate the effect of introducing the RENPNN on training performance. To provide a comprehensive evaluation of how different reward function designs influence training outcomes, we compare the training performance across 5555 reward function designs:
+
+
+•
+
+Raw R.: The reward directly uses the system objective R=C𝑅𝐶R=Citalic_R = italic_C [5].
+
+
+
+•
+
+Designed R.: The reward function is designed under the guidance of expert knowledge (that is, theoretical upper bound) R′superscript𝑅′R^{{}^{\prime}}italic_R start_POSTSUPERSCRIPT start_FLOATSUPERSCRIPT ′ end_FLOATSUPERSCRIPT end_POSTSUPERSCRIPT as R=C−R′𝑅𝐶superscript𝑅′R=C-R^{{}^{\prime}}italic_R = italic_C - italic_R start_POSTSUPERSCRIPT start_FLOATSUPERSCRIPT ′ end_FLOATSUPERSCRIPT end_POSTSUPERSCRIPT [17].
+
+
+
+•
+
+Designed R. + MLP: The designed reward function is adjusted and explored using a Multilayer Perception (MLP).
+
+
+
+•
+
+GDM R.: The designed reward function is directly explored using GDMs.
+
+
+
+•
+
+Designed + GDM R.: Based on the Designed R., the designed reward function is further enhanced and explored using GDMs.
+
+
+
+
+
+
+
+V-A4 State Exploration Setting
+
+Building upon the foundation of action exploration and reward exploration, we extend our research to examine the impact on training performance when a portion of the original state data is replaced using GDMs. To systematically evaluate the influence of state exploration on training efficiency, we introduce two aforementioned hyperparameters: ℳℳ\mathcal{M}caligraphic_M and η𝜂\etaitalic_η. By varying these hyperparameters, we conduct a comparative analysis of system performance with and without state exploration under 5555 reward design scenarios:
+
+
+•
+
+Raw R. + S. Exp.: State exploration is introduced on top of the raw reward R=C𝑅𝐶R=Citalic_R = italic_C.
+
+
+
+•
+
+Designed R. + S. Exp.: State exploration is introduced on top of the designed reward function.
+
+
+
+•
+
+Designed R. + MLP + S. Exp.: State exploration is introduced on top of the Designed R. adjusted by MLP.
+
+
+
+•
+
+GDM R. + S. Exp.: State exploration is introduced on top of the GDM reward function.
+
+
+
+•
+
+Designed + GDM R. + S. Exp.: State exploration is introduced on top of the Designed R. enhanced by GDMs.
+
+
+
+
+
+
+
+V-A5 Evaluation Metric
+
+To assess the performance and effectiveness of the proposed approach, we employ a comprehensive set of evaluation metrics.
+
+
+•
+
+Sum Rate &amp;\&amp;&amp; Moving Averaging (MA) Reward[41]: The sum rate serves as the optimization objective of the problem, directly reflects the efficiency of resource allocation. Additionally, the MA reward provides a measure of the quality of resource allocation decisions over time. These two metrics offer a clear indication of the training efficiency achieved under different space exploration cases.
+
+
+
+•
+
+Gradient Weight &amp;\&amp;&amp; Gradient Bias: To better understand the learning dynamics and performance variations across different space exploration scenarios, we analyze the gradient weight and bias, which are fundamental metrics that quantify the learning process’s progression. Gradient weight is the primary driver of learning, optimizing feature extraction and input-output mappings while addressing challenges like vanishing or exploding gradients. Gradient bias, although smaller in magnitude, modulates neuronal activation thresholds and facilitates adaptation to diverse data distributions. When properly calibrated, gradient bias can accelerate initial training phases by enabling rapid threshold adjustments and helping networks overcome suboptimal initialization states.
+
+
+
+•
+
+Total GPU Time &amp;\&amp;&amp; GPU Time Per Epoch: Furthermore, we recognize the importance of computational efficiency in the training process. To this end, we evaluate the total GPU time and the GPU time per epoch. These metrics allow us to quantify the trade-off between the increased complexity introduced by the exploration techniques and the potential benefits of faster convergence. By considering both the performance improvements and the computational costs, we aim to provide a holistic assessment of the proposed approach and its practical viability.
+
+
+
+
+
+
+
+
+V-B Performance Evaluation
+
+
+Figure 2: Comparison of (a) the sum rate achieved by GDM-based action exploration and without action exploration, and (b) MA reward obtained by GDM-based action exploration and without action exploration.
+
+
+
+Figure 3: Comparison of (a) total GPU time for convergence achieved by GDM-based action exploration and without action exploration, and (b) GPU time per epoch for different conditions achieved by GDM-based action exploration and without action exploration.
+
+
+
+
+V-B1  GDM-based Action Exploration
+
+
+Fig.  2 illustrates the sum rate and reward throughout the learning process, with and without action exploration. As shown in Fig.  2(a), although the sum rate achieved by A. w/ GDM in the early training stage is lower than that of A. w/o GDM, it converges more quickly to a stable optimal value. This rapid convergence indicates the superior long-term performance of A. w/ GDM. Fig. 2(b) demonstrates that when the sum rate stabilizes, the MA reward of A. w/ GDM is consistently higher than that of A. w/o GDM, with the reward trend closely mirroring the sum rate. Furthermore, A. w/ GDM exhibits less reward fluctuation compared to A. w/o GDM, further confirming the robustness and stability of GDM. While both algorithms reach a plateau in the sum rate around 15,000 epochs, A. w/ GDM maintains a higher sum rate thereafter, highlighting its sustained performance advantage.
+
+
+Figure 3 illustrates the total GPU time required for training convergence and the average GPU time per epoch. As shown in Fig. 3(a), the total GPU time needed for A. w/ GDM to reach convergence is approximately 8.3%percent\%% lower than that of A. w/o GDM. However, Fig. 3(b) reveals that the GPU time required for each epoch in A. w/ GDM is more than twice that of A. w/o GDM. This increased per-epoch GPU time can be attributed to the additional complexity introduced by the GDM-based action exploration. Despite this higher computational time per epoch, the rapid convergence of A. w/ GDM effectively compensates for the additional time, resulting in an overall reduction in total GPU time for convergence.
+This underscores the superior performance of A. w/ GDM in terms of the total GPU time required for convergence, which demonstrates the effectiveness and efficiency of incorporating GDM in the action exploration.
+
+
+
+
+V-B2  GDM-based Reward Exploration
+
+
+Figure 4: Comparison of (a) the sum rate and (b) MA reward for different reward design cases.
+
+
+
+Fig. 4 (a) demonstrates the effectiveness of incorporating expert knowledge in reward design, with the Designed R. outperforming the Raw R. The Designed R.+MLP method further enhances this foundation by introducing exploratory capabilities through an MLP, resulting in improved performance and highlighting the potential benefits of reward exploration. Although the GDM R. converges slightly slower than the best-performing Designed+GDM R., it still exhibits significant exploratory power, surpassing the performance of the earlier methods. The Designed+GDM R. achieves the best overall performance, rapidly accelerating training convergence and attaining the highest sum rate. This underscores the effectiveness of integrating GDM into reward design for complex environments, leveraging the strengths of both expert knowledge and exploratory techniques.
+
+
+Figure 5: Comparison of (a) the mean gradient weight and (b) the mean gradient bias for different reward design cases.
+
+
+
+Figure 6: Comparison of (a) total GPU time for convergence and (b) GPU time per epoch for different reward design cases.
+
+
+
+Fig. 5 presents a comprehensive analysis of gradient weights and biases across different layers and reward design cases. As shown in Fig. 5(a), the Designed+GDM R. approach exhibits the highest gradient weights in Layer 3, followed by Layer 2, while Layer 1 maintains minimal weights. This hierarchical distribution pattern persists across all cases with varying magnitudes. Fig. 5(b) reveals gradient bias distributions ranging from 0.03 to 0.09, with Layer 2 showing notably elevated bias values (up to 0.85) in the Designed GDM R. case.
+The superior performance of Designed+GDM R. can be attributed to its optimal combination of high gradient weights and well-distributed bias values across layers, leading to rapid convergence and training stability. Although the GDM R. case shows the lowest weight magnitude, it achieves relatively rapid convergence due to comparable gradient bias magnitude with Designed GDM R. Similarly, Designed R. + MLP demonstrates faster convergence than Designed R., corresponding to its higher gradient weight values while maintaining comparable gradient bias values.
+
+
+Fig. 6 presents the total GPU time and GPU time per epoch required for convergence across different reward design cases. The Designed+GDM R. method achieves the best overall performance, reducing the total GPU time by over 58%percent\%% in comparison to the Designed R., despite a 13.9%percent13.913.9\%13.9 % increase in per-epoch computation. This demonstrates its efficiency in balancing rapid convergence with computational cost. The GDM R. method also significantly reduces total GPU time by 55%percent5555\%55 % relative to Designed R., even though it requires the most time per epoch. Its faster convergence compensates for this, making it computationally efficient overall. On the other hand, Designed R.+MLP shows a little lower total GPU time than Designed R., but its per-epoch time increases by 6.7%percent6.76.7\%6.7 %, indicating that while MLP boots performance, it comes with a higher computation cost per epoch.
+
+
+
+
+V-B3  GDM-based State Exploration
+
+
+Figure 7: Comparison of gradient loss for (a) the weight sum of Designed R., (b) the bias sum of Designed R., (c) the weight sum of Designed R.+MLP, (d) the bias sum of Designed R.+MLP, (e) the weight sum of Designed R.+GDM, (f) the bias sum of Designed R.+GDM, (g) the weight sum of GDM R., and (h) the bias sum of GDM R.with different η𝜂\etaitalic_η and ℳℳ\mathcal{M}caligraphic_M across different layers.
+
+
+
+Based on our investigation, both gradient weights and biases play crucial roles in the convergence of the learning process. We conducted a comprehensive parameter sweep across two hyperparameters: i) the maximum probability ℳℳ\mathcal{M}caligraphic_M of the state exploration, and ii) the update rate η𝜂\etaitalic_η at which this exploration probability increases. Fig. 7 compares the sum of gradient weights and biases across all layers under different hyperparameter configurations (the 3D bar chart) and the baseline without state exploration (the shadow plane).
+The results demonstrate that weights (range: 0-2) and biases (range: 0-0.2) exhibit distinct sensitivity patterns to these hyperparameters in our FD wireless communication network. State exploration has a dual impact on training speed. To identify the optimal configuration for each reward design case, we selected the best hyperparameter combination by comparing against the baseline. The Designed R. benefits from high ℳℳ\mathcal{M}caligraphic_M (0.9) with conservative η𝜂\etaitalic_η (0.001), while the Designed R. + MLP performs best with moderate ℳℳ\mathcal{M}caligraphic_M (0.3) and increased η𝜂\etaitalic_η (0.01). The Designed R. + GDM achieves optimal performance with ℳ=1.0ℳ1.0\mathcal{M}=1.0caligraphic_M = 1.0 and conservative η𝜂\etaitalic_η (0.001), and the GDM R. requires moderate ℳℳ\mathcal{M}caligraphic_M (0.4) with elevated η𝜂\etaitalic_η (0.01). These carefully selected configurations ensure optimal gradient characteristics, promoting stable and efficient training dynamics across all model variants.
+
+
+Figure 8: Comparison of (a) the sum rate and (b) MA reward for different reward design cases with GDM-based state exploration and without GDM-based state exploration.
+
+
+
+Fig. 8 compares sum rates and rewards across different reward design cases using optimally selected hyperparameters. The impact of state exploration varies among the cases. In the Designed R. and Designed R. + MLP cases, tuned state exploration significantly accelerates convergence from epoch 5000 to 2000, mitigating the delayed convergence caused by suboptimal reward designs. The GDM R. case shows modest improvements with state exploration. Surprisingly, the Designed GDM R. case exhibits slightly decreased learning speed when supplemented with additional state exploration, suggesting a performance ceiling where near-optimal training efficiency renders additional GDM-based state dataset replacements counterproductive. The Raw R. case remains an exception, maintaining stable but suboptimal sum rates around 3.5 regardless of state exploration.
+
+
+Figure 9: Comparison of (a) total GPU time for convergence and (b) GPU time per epoch for different reward design cases with GDM-based state exploration and without GDM-based state exploration.
+
+
+
+Fig. 9 compares the total and per-epoch GPU time required for convergence across different reward design methods, with and without state exploration. While state exploration increases per-epoch computational overhead across all methods, it demonstrates potential for reducing total GPU time through enhanced training efficiency.
+The Designed R. and Designed R.+MLP methods show significant reductions in total GPU time with state exploration, indicating that improved state space exploration expedites convergence to optimal solutions. Conversely, Designed+GDM R. and GDM R. experience increased total GPU time with state exploration, supporting the hypothesis that near-optimal reward designs may not benefit from additional state dataset replacements. The consistent increase in per-epoch computational costs across all methods reflects the additional overhead of complex state sampling strategies.
+
+
+
+
+
+
+VI Conclusions
+
+
+Addressing training inefficiency is critical for enabling real-world DRL deployment in dynamic wireless networks, where periodic retraining under time-varying environment risks prohibitive computational delays and energy costs. This paper presented the D2RL framework to address training inefficiencies for resource allocation in dynamic wireless networks by integrating GDMs across three core DRL components. Experimental results demonstrated that GDM-driven reward exploration, particularly when combined with expert-designed reward structures, achieved the fastest convergence and highest sum-rate performance by balancing exploration with domain-specific knowledge. While GDM-enhanced action exploration reduced total training time despite increased per-epoch computational costs, state-space diversification via GDMs exhibited dual effects: it accelerated convergence in scenarios with suboptimal reward designs but hindered performance when reward functions were already optimized, underscoring the necessity of context-aware hyperparameter tuning for state replacement probability and update rates. The framework’s sensitivity analysis revealed critical trade-offs between computational overhead and training efficiency, with optimally tuned state exploration complementing reward refinement to mitigate inefficiencies in complex channel environments. These findings advocate for systematic co-design of DRL components, providing a pathway toward adaptive resource allocation in real-world mobile networks.
+
+
+
+
+References
+
+
+[1]
+
+N. Q. Hieu, D. T. Hoang, D. Niyato, and D. I. Kim, “Optimal power allocation
+for rate splitting communications with deep reinforcement learning,”
+IEEE Wireless Commun. Lett., vol. 10, no. 12, pp. 2820–2823, 2021.
+
+
+
+
+[2]
+
+Y. Gao, X. Yuan, D. Yang, Y. Hu, Y. Cao, and A. Schmeink, “UAV-assisted
+MEC system with mobile ground terminals: DRL-based joint terminal
+scheduling and UAV 3D trajectory design,” IEEE Trans. Veh.
+Technol., vol. 73, no. 7, pp. 10 164–10 180, 2024.
+
+
+
+
+[3]
+
+Z. He, W. Xu, H. Shen et al., “Full-duplex communication for ISAC:
+Joint beamforming and power optimization,” IEEE J. Sel. Areas
+Commun., vol. 41, no. 9, pp. 2920–2936, 2023.
+
+
+
+
+[4]
+
+A. Chauhan, A. Jaiswal, and C. Tellambura, “Full-duplex cooperative NOMA
+with signal space diversity: Minimizing SIC operations,” IEEE
+Wireless Commun. Lett., 2024, doi: 10.1109/LWC.2024.3429236.
+
+
+
+
+[5]
+
+N. Nayak, S. Kalyani, and H. A. Suraweera, “A DRL approach for
+RIS-assisted full-duplex UL and DL transmission: Beamforming, phase
+shift and power optimization,” IEEE Trans. Wireless Commun., vol. 23,
+no. 10, pp. 14 652–14 666, 2024.
+
+
+
+
+[6]
+
+A. Kumar, A. Zhou, G. Tucker, and S. Levine, “Conservative q-learning for
+offline reinforcement learning,” Adv. Neural Inf. Process. Syst.,
+vol. 33, pp. 1179–1191, 2020.
+
+
+
+
+[7]
+
+R. Agarwal, D. Schuurmans, and M. Norouzi, “An optimistic perspective on
+offline reinforcement learning,” in International Conference on
+Machine Learning.   PMLR, 2020, pp.
+104–114.
+
+
+
+
+[8]
+
+G. Muhammad and M. S. Hossain, “Deep-reinforcement-learning-based sustainable
+energy distribution for wireless communication,” IEEE Wireless
+Commun., vol. 28, no. 6, pp. 42–48, 2021.
+
+
+
+
+[9]
+
+Y.-L. Jin, Z.-Y. Ji, D. Zeng, and X.-P. Zhang, “VWP: An efficient
+DRL-based autonomous driving model,” IEEE Trans. Multimedia,
+vol. 26, pp. 2096–2108, 2022.
+
+
+
+
+[10]
+
+T. Qian, Z. Liang, C. Shao, H. Zhang, Q. Hu, and Z. Wu, “Offline DRL for
+price-based demand response: Learning from suboptimal data and beyond,”
+IEEE Trans. Smart Grid, vol. 15, no. 5, pp. 4618–4635, 2024.
+
+
+
+
+[11]
+
+L. Wang, Z. Yang, and Z. Wang, “Provably efficient causal reinforcement
+learning with confounded observational data,” Adv. Neural Inf.
+Process. Syst., vol. 34, pp. 21 164–21 175, 2021.
+
+
+
+
+[12]
+
+C. Wang, X. Luo, K. Ross, and D. Li, “Vrl3: A data-driven framework for visual
+deep reinforcement learning,” Adv. Neural Inf. Process. Syst.,
+vol. 35, pp. 32 974–32 988, 2022.
+
+
+
+
+[13]
+
+N. Mohi Ud Din, A. Assad, S. Ul Sabha, and M. Rasool, “Optimizing deep
+reinforcement learning in data-scarce domains: A cross-domain evaluation of
+double DQN and dueling DQN,” International Journal of System
+Assurance Engineering and Management, pp. 1–12, 2024.
+
+
+
+
+[14]
+
+J. Chen, W. Liu, D. E. Quevedo, S. R. Khosravirad, Y. Li, and B. Vucetic,
+“Structure-enhanced DRL for optimal transmission scheduling,”
+IEEE Trans. Wireless Commun., vol. 23, no. 1, pp. 379–393, 2023.
+
+
+
+
+[15]
+
+E. J. Michaud, A. Gleave, and S. Russell, “Understanding learned reward
+functions,” arXiv preprint arXiv:2012.05862, 2020.
+
+
+
+
+[16]
+
+Z. Lyu, C. Ren, and L. Qiu, “Movement and communication co-design in
+multi-UAV enabled wireless systems via DRL,” in 2020 IEEE 6th
+International Conference on Computer and Communications (ICCC).   IEEE, 2020, pp. 220–226.
+
+
+
+
+[17]
+
+H. Du, R. Zhang, Y. Liu, J. Wang, Y. Lin, Z. Li, D. Niyato, J. Kang, Z. Xiong,
+S. Cui et al., “Enhancing deep reinforcement learning: A tutorial on
+generative diffusion models in network optimization,” IEEE Commun.
+Surveys Tutorials, vol. 26, no. 4, pp. 2611–2646, 2024.
+
+
+
+
+[18]
+
+J. Sohl-Dickstein, E. Weiss, N. Maheswaranathan, and S. Ganguli, “Deep
+unsupervised learning using nonequilibrium thermodynamics,” in
+International Conference on Machine Learning.   PMLR, 2015, pp. 2256–2265.
+
+
+
+
+[19]
+
+Y. Zhi, J. Tian, X. Deng, J. Qiao, and D. Lu, “Deep reinforcement
+learning-based resource allocation for D2D communications in heterogeneous
+cellular networks,” Digit. Commun. Netw., vol. 8, no. 5, pp.
+834–842, 2022.
+
+
+
+
+[20]
+
+P. Luong, F. Gagnon, L.-N. Tran, and F. Labeau, “Deep reinforcement
+learning-based resource allocation in cooperative UAV-assisted wireless
+networks,” IEEE Trans. Wireless Commun., vol. 20, no. 11, pp.
+7610–7625, 2021.
+
+
+
+
+[21]
+
+L. Wang, W. Wu, F. Zhou, Q. Wu, O. A. Dobre, and T. Q. Quek, “Hybrid
+hierarchical DRL enabled resource allocation for secure transmission in
+multi-IRS-assisted sensing-enhanced spectrum sharing networks,”
+IEEE Trans. Wireless Commun., vol. 23, no. 6, pp. 6330–6346, 2024.
+
+
+
+
+[22]
+
+X. Wang, Y. Zhang, R. Shen, Y. Xu, and F.-C. Zheng, “DRL-based
+energy-efficient resource allocation frameworks for uplink NOMA systems,”
+IEEE Internet Things J., vol. 7, no. 8, pp. 7279–7294, 2020.
+
+
+
+
+[23]
+
+H. Zhang, H. Wang, Y. Li, K. Long, and A. Nallanathan, “DRL-driven dynamic
+resource allocation for task-oriented semantic communication,” IEEE
+Trans. Commun., vol. 71, no. 7, pp. 3992–4004, 2023.
+
+
+
+
+[24]
+
+D.-D. Tran, S. K. Sharma, V. N. Ha, S. Chatzinotas, and I. Woungang,
+“Multi-agent DRL approach for energy-efficient resource allocation in
+URLLC-enabled grant-free NOMA systems,” IEEE Open J. Commun.
+Soc., vol. 4, pp. 1470–1486, 2023.
+
+
+
+
+[25]
+
+M. Janner, Y. Du, J. B. Tenenbaum, and S. Levine, “Planning with diffusion for
+flexible behavior synthesis,” arXiv preprint arXiv:2205.09991, 2022.
+
+
+
+
+[26]
+
+Y. Kang, J. Wen, J. Kang, T. Zhang, H. Du, D. Niyato, R. Yu, and S. Xie,
+“Hybrid-generative diffusion models for attack-oriented twin migration in
+vehicular metaverses,” arXiv preprint arXiv:2407.11036, 2024.
+
+
+
+
+[27]
+
+H. Du, Z. Li, D. Niyato, J. Kang, Z. Xiong, H. Huang, and S. Mao,
+“Diffusion-based reinforcement learning for edge-enabled AI-generated
+content services,” IEEE Trans. Mobile Comput., vol. 23, no. 9, pp.
+8902–8918, 2024.
+
+
+
+
+[28]
+
+J. Qin, J. Wu, W. Chen, Y. Ren, H. Li, H. Wu, X. Xiao, R. Wang, and S. Wen,
+“Diffusiongpt: LLM-driven text-to-image generation system,” arXiv
+preprint arXiv:2401.10061, 2024.
+
+
+
+
+[29]
+
+A. M. Seid, G. O. Boateng, B. Mareri, G. Sun, and W. Jiang, “Multi-agent DRL
+for task offloading and resource allocation in multi-UAV enabled iot edge
+network,” IEEE Trans. Netw. Service Manag., vol. 18, no. 4, pp.
+4531–4547, 2021.
+
+
+
+
+[30]
+
+S. Zhang, H. Gu, K. Chi, L. Huang, K. Yu, and S. Mumtaz, “DRL-based partial
+offloading for maximizing sum computation rate of wireless powered mobile
+edge computing network,” IEEE Trans. Wireless Commun., vol. 21,
+no. 12, pp. 10 934–10 948, 2022.
+
+
+
+
+[31]
+
+Y. Hao, F. Li, C. Zhao, and S. Yang, “Delay-oriented scheduling in 5G
+downlink wireless networks based on reinforcement learning with partial
+observations,” IEEE ACM Trans. Netw., vol. 31, no. 1, pp. 380–394,
+2022.
+
+
+
+
+[32]
+
+S. K. Kasi, U. S. Hashmi, S. Ekin, A. Abu-Dayya, and A. Imran, “D-RAN: A
+DRL-based demand-driven elastic user-centric RAN optimization for 6G &amp;
+beyond,” IEEE Trans. Cogn. Commun. Netw., vol. 9, no. 1, pp.
+130–145, 2022.
+
+
+
+
+[33]
+
+E. Swistak, M. Roshdi, R. German, and M. Harounabadi, “QoS-DRAMA: Quality of
+service aware drl-based adaptive mid-level resource allocation scheme,” in
+IEEE INFOCOM 2024-IEEE Conference on Computer Communications Workshops
+(INFOCOM WKSHPS).   IEEE, 2024, pp.
+1–6.
+
+
+
+
+[34]
+
+Y. Al-Eryani and E. Hossain, “Self-organizing mmwave MIMO cell-free networks
+with hybrid beamforming: A hierarchical DRL-based design,” IEEE
+Trans. Commun., vol. 70, no. 5, pp. 3169–3185, 2022.
+
+
+
+
+[35]
+
+J. He, B. Tan, and Y. Gao, “Reinforcement learning based downlink OFDMA
+scheduling for time-sensitive wifi networks,” in 2023 IEEE/CIC
+International Conference on Communications in China (ICCC).   IEEE, 2023, pp. 1–6.
+
+
+
+
+[36]
+
+R. Chai, G. Yang, L. Liu, and Q. Chen, “DRL-based dynamic resource
+allocation for multi-beam satellite systems,” IEEE Trans. Netw.
+Serv. Manag., vol. 21, no. 4, pp. 3829–3845, 2024.
+
+
+
+
+[37]
+
+J. Song, C. Meng, and S. Ermon, “Denoising diffusion implicit models,”
+arXiv preprint arXiv:2010.02502, 2020.
+
+
+
+
+[38]
+
+J. Yu, A. Alhilal, T. Zhou, P. Hui, and D. H. Tsang, “Attention-based
+QoE-aware digital twin empowered edge computing for immersive virtual
+reality,” IEEE Trans. Wireless Commun., vol. 23, no. 9, pp.
+11 276–11 290, 2024.
+
+
+
+
+[39]
+
+H. Hu, D. Wu, F. Zhou, X. Zhu, R. Q. Hu, and H. Zhu, “Intelligent resource
+allocation for edge-cloud collaborative networks: A hybrid DDPG-D3QN
+approach,” IEEE Trans. Veh. Technol., vol. 72, no. 8, pp.
+10 696–10 709, 2023.
+
+
+
+
+[40]
+
+J. Miao, S. Bai, S. Mumtaz, Q. Zhang, and J. Mu, “Utility-oriented
+optimization for video streaming in UAV-aided MEC network: A DRL
+approach,” IEEE Trans. Green Commun. Netw., vol. 8, no. 2, pp.
+878–889, 2024.
+
+
+
+
+[41]
+
+T. Zhou, J. Yu, J. Zhang, and D. H. Tsang, “Federated prompt-based decision
+transformer for customized VR services in mobile edge computing system,”
+arXiv preprint arXiv:2402.09729, 2024.
+
+
+
+
+
+
+

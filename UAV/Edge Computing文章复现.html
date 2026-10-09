@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edge Computing 文章复现</title>
+
+<!-- MathJax 配置：识别 \( \) 行内公式 和 \[ \] 行间公式 -->
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)']],
+    displayMath: [['\\[', '\\]']],
+    processEscapes: true
+  },
+  options: {
+    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+        line-height: 1.9;
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 40px 24px;
+        color: #2c3e50;
+        background-color: #fafafa;
+    }
+    h2 {
+        color: #1a5276;
+        border-bottom: 2px solid #2980b9;
+        padding-bottom: 8px;
+        margin-top: 36px;
+    }
+    h3 {
+        color: #21618c;
+        border-left: 4px solid #2980b9;
+        padding-left: 12px;
+        margin-top: 32px;
+    }
+    p { margin: 12px 0; }
+    strong { color: #1a1a1a; }
+    img { max-width: 100%; border: 1px solid #ddd; border-radius: 6px; display: block; margin: 12px auto; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 32px 0; }
+    .algo {
+        background-color: #f4f6f8;
+        border: 1px solid #cfd8dc;
+        border-left: 4px solid #2980b9;
+        border-radius: 6px;
+        padding: 18px 22px;
+        line-height: 2.0;
+        margin: 16px 0;
+    }
+    /* 宽公式可横向滚动，避免溢出 */
+    mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+    mjx-container[display="true"] { margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<h2>论文思路：系统建模 → 化简成 ski-rental → 随机化策略 → minimax + 对偶求解 → 落成算法</h2>
+
+<h3>系统建模</h3>
+
+<img src="https://i-blog.csdnimg.cn/direct/048a15199cce4e399f90ed10a995472a.png" alt="系统框架图">
+
+<p>卸载调度器（Unloading Scheduler）是核心，负责决定如何卸载，当端点发来请求推理引擎确认推理所需层是否已在内存中，若在则开始推理，若不在则给加载引擎发消息让其load缺失层，并且通知卸载调度器停止正在进行的卸载，推理结束后再向调度器发送空闲消息，由调度器继续调度如何卸载。</p>
+
+<h3>A. 系统模型</h3>
+
+<p>考虑一个具有 \(|\mathcal{I}|\) 层的LLM。如果模型的第 \(i\) 层保留在内存中，它占用 \(c_i\) 的内存空间。因此，保留整个模型需要 \(\sum_{i\in \mathcal{I}}c_i\) 的内存。当新请求到达时，当前推理所需的所有参数必须驻留在内存中。如果第 \(i\) 层缺失（即已被卸载），则必须重新加载，产生记为 \(d_i\) 的加载延迟。因此，加载整个模型产生的延迟为 \(\sum_{i\in \mathcal{I}}d_i\)。</p>
+
+<p>完成自回归推理后，模型变为空闲状态，即没有正在进行的推理。<strong>内存成本</strong>定义为空闲期间内存占用与占用时长的乘积。为了降低内存成本，层应尽早卸载。相反，为了减少后续请求的加载延迟，层必须保留在内存中。因此，内存成本可以被视为模型空闲期间的一种资源支出，用以换取降低加载延迟的收益。这种权衡需要仔细确定 \((t_1, \dots, t_i, \dots, t_{|\mathcal{I}|})\)，以联合优化加载延迟和内存成本。</p>
+
+<p>为便于分析，我们根据各层在内存中的保留状态定义模型的<strong>保留状态</strong> \(s_i\)。当第1层到第 \(i\) 层被保留、第 \(i+1\) 层到第 \(|\mathcal{I}|\) 层被卸载时，模型处于状态 \(s_i\)。当模型处于状态 \(s_{|\mathcal{I}|}\) 时，所有层都被保留；在状态 \(s_0\) 时，所有层都被卸载。从状态 \(s_i\) 转换到状态 \(s_{i-1}\) 意味着第 \(i\) 层被卸载。因此，确定 \(t_i\) 对应于确定从状态 \(s_i\) 转换到状态 \(s_{i-1}\) 的时间。</p>
+
+<p>在状态 \(s_i\) 下，模型占用内存为 \(C_i = \sum_{i'\leq i} c_{i'}\)。当请求到达时，模型必须重新加载必要的层以恢复到状态 \(s_{|\mathcal{I}|}\)。因此，从状态 \(s_i\) 开始服务请求会产生加载延迟 \(D_i = \sum_{i'\geq i} d_{i'}\)。<strong>内存占用越大的状态，加载延迟越小；反之亦然。</strong> 因此，有 \(C_0 &lt; \dots &lt; C_{|\mathcal{I}|}\) 且 \(D_0 &gt; \dots &gt; D_{|\mathcal{I}|}\)。</p>
+
+<hr>
+
+<h3>B. QoS约束</h3>
+
+<p>QoS约束规定加载延迟不得超过 \(D_{QoS}\)。因此，任何满足 \(D_i &gt; D_{QoS}\) 的状态 \(s_i\) 都将因加载延迟过大而被禁止，从而违反QoS约束。我们找出满足 \(D_i \leq D_{QoS}\) 的最小 \(i\)，记为 \(\bar{i} = \{\min_{i\in \mathcal{I}}\{i\} \mid D_i \leq D_{QoS}\}\)。处于状态 \(s_0\) 到 \(s_{\bar{i}-1}\) 会违反QoS约束，这意味着为了满足QoS要求，第1层到第 \(\bar{i}\) 层<strong>必须始终保留</strong>在内存中。因此，我们有：</p>
+
+\[
+\{t_i = +\infty \mid 1 \leq i \leq \bar{i},\ \bar{i} = \{\min_{i\in \mathcal{I}}\{i\} \mid D_i \leq D_{QoS}\}\}. \tag{1a}
+\]
+
+<hr>
+
+<h3>C. 问题形式化</h3>
+
+<p>剩余的问题涉及确定第 \(\bar{i}+1\) 层到第 \(|\mathcal{I}|\) 层的卸载时间。假设模型在 \(t = 0\) 时变为空闲。令 \(S_i(t)\) 表示模型在时刻 \(t\) 处于状态 \(s_i\) 的概率，其中 \(\sum_{i \in \mathcal{I} \cup \{0\}} S_i(t) = 1\) 对 \(t \geq 0\) 成立。为满足QoS约束，要求 \(S_i(t) = 0\) 对 \(0 \leq i \leq \bar{i}-1\) 成立。</p>
+
+<p>对于在 \(\tau\) 时刻到达的下一个请求，在线联合优化问题如下：</p>
+
+\[
+\begin{array}{rl}
+\min &amp; \sum_{i \in \mathcal{I} \cup \{0\}} \eta D_i S_i(\tau) + \int_0^\tau \sum_{i \in \mathcal{I} \cup \{0\}} C_i S_i(t) \, \mathrm{d}t, \\[1.2ex]
+\mathrm{s.t.} &amp; \sum_{i \in \mathcal{I} \cup \{0\}} S_i(t) = 1, \quad t \geq 0, \\[0.6ex]
+&amp; S_i(t) = 0, \quad 0 \leq i \leq \bar{i}-1,
+\end{array} \tag{2b}
+\]
+
+<p>其中 \(\eta\) 是分配给加载延迟的权重。优化目标是在满足加载延迟最大允许值的QoS约束的前提下，最小化以下两项的加权和：（1）服务下一个请求时产生的加载延迟；（2）模型空闲期间累积的内存成本。该加权目标反映了空闲期间内存成本与请求到达时加载延迟之间的内在权衡。权重参数 \(\eta\) 将加载延迟转换为等效的内存成本尺度。这种加权目标通过权重统一了异构成本，这是资源管理和调度系统中常见的建模方式[20]。通过最小化总成本来联合优化加载延迟和内存成本，我们可以实现这两者之间的权衡。</p>
+
+<p>求解该问题的主要挑战在于未来请求到达时间 \(\tau\) 的不确定性，在做出决策时 \(\tau\) 是未知的。这使卸载决策的确定变得复杂。接下来，我们证明这个联合优化问题可以转化为<strong>多斜率滑雪租赁问题</strong>[23]。</p>
+
+<hr>
+
+<h3>D. 转化为滑雪租赁问题</h3>
+
+<p>在多斜率滑雪租赁问题中，一个滑雪者面对不确定的滑雪时长，必须从多种方案中选择以最小化成本。每种滑雪租赁方案的特征是<strong>初始购买价格</strong>（类比于某个保留状态的加载延迟）和<strong>持续租赁成本</strong>（类比于某个保留状态的内存占用）。处于模型的某个状态对应于选择某个滑雪租赁方案。下一个请求的不可预测到达时间类比于不确定的滑雪时长。因此，层卸载问题可以转化为多斜率滑雪租赁问题。</p>
+
+<p>进一步地，我们证明该问题可以简化为<strong>2-斜率滑雪租赁问题</strong>。在2-斜率滑雪租赁问题中，滑雪者必须每天租赁滑雪板或购买一副。在LLM中，层的加载延迟主要由其参数量和磁盘到GPU的数据路径（如PCIe）的有效带宽决定。因此，层的加载延迟近似与其内存占用成正比，即 \(d_i = k c_i\)。尽管可能由于波动出现微小偏差，但这种比例关系在实践中成立，如表III中的实测数据所验证。</p>
+
+<p>如果模型始终保持在状态 \(s_{i_1}\) 和 \(s_{i_2}\)，直到时刻 \(t\) 所产生的总成本分别为：</p>
+
+\[
+\sum_{i'\leq i_1} c_{i'} t + \sum_{i' > i_1} \eta d_{i'}
+\]
+
+<p>和</p>
+
+\[
+\sum_{i'\leq i_2} c_{i'} t + \sum_{i' > i_2} \eta d_{i'}.
+\]
+
+<p>这两条线的交点满足：</p>
+
+\[
+\sum_{i'\leq i_1} c_{i'} t + \sum_{i' > i_1} \eta d_{i'} = \sum_{i'\leq i_2} c_{i'} t + \sum_{i' > i_2} \eta d_{i'}. \tag{3a}
+\]
+
+<p>代入 \(d_i = k c_i\)，我们得到 \(t = \eta k\)。这表明，无论哪对状态 \(s_{i_1}\) 和 \(s_{i_2}\)，它们都在同一点 \(B\) 相交，如图3所示。其中 \(B = \eta D_{\bar{\tau}} / (C_{|\mathcal{I}|} - C_{\bar{\tau}})\) 是这些线的交点。</p>
+
+<p>由于：</p>
+
+\[
+s_{\bar{\tau}} = \arg\min_{s_i} \{C_i \tau + \eta D_i\} \quad \text{若 } \tau &gt; B,
+\]
+\[
+s_{|\mathcal{I}|} = \arg\min_{s_i} \{C_i \tau + \eta D_i\} \quad \text{若 } \tau \leq B,
+\]
+
+<p>因此，如果下一个请求在 \(\tau &gt; B\) 时到达，最优策略是处于状态 \(s_{\bar{\tau}}\)；反之，如果请求在 \(\tau \leq B\) 时到达，最优策略是处于状态 \(s_{|\mathcal{I}|}\)。<strong>不会有其他状态被选中</strong>，这意味着第 \(\bar{\tau}+1\) 层到第 \(|\mathcal{I}|\) 层必须在同一时刻 \(\bar{t}\) 同时卸载，即 \(\bar{t} = t_{\bar{\tau}+1} = \dots = t_{|\mathcal{I}|}\)。</p>
+
+<p>因此，我们将状态 \(s_{\bar{\tau}}\) 和 \(s_{|\mathcal{I}|}\) 分别映射到2-斜率滑雪租赁问题的<strong>购买</strong>和<strong>租赁</strong>选项。租赁成本为1，购买成本为 \(B\)。</p>
+
+<hr>
+
+<h3>E. 滑雪租赁问题的策略</h3>
+
+<p>为确定 \(\bar{t}\)，本小节提出一种求解2-斜率滑雪租赁问题的策略。我们定义概率密度函数 \(P(t)\)，表示在时刻 \(t\) 卸载第 \(\bar{\tau}+1\) 层到第 \(|\mathcal{I}|\) 层的概率。如前所述，模型必须在 \(0 \leq t \leq B\) 区间内从状态 \(s_{|\mathcal{I}|}\) 转换到状态 \(s_{\bar{\tau}}\)，因此 \(P(t)\) 仅在 \(0 \leq t \leq B\) 上有定义，在其他情况下为0。概率密度函数 \(P(t)\) 为：</p>
+
+\[
+P(t) = p(t) + \alpha \delta(t) + \beta \delta(t - B), \tag{4a}
+\]
+
+<p>其中 \(p(t)\) 是在 \(0 &lt; t &lt; B\) 上的概率密度函数。在 \(t = 0\) 和 \(t = B\) 处有两个离散分布分量，概率质量分别为 \(\alpha\) 和 \(\beta\)。使用狄拉克 \(\delta\) 函数来表示离散概率分布。</p>
+
+<p>多项研究表明，<strong>额外的统计信息可以提升算法性能</strong>[34]-[36]。因此，我们纳入请求到达间隔的统计数据，包括<strong>长间隔概率</strong> \(q_{B^+}\)、<strong>短间隔一阶矩</strong> \(\mu_{B^-}\) 和<strong>短间隔二阶矩</strong> \(\sigma_{B^-}\)。虽然方差通常更容易获取，但这里我们使用二阶矩，因为方差与二阶矩仅相差一个常数。与[34]-[36]仅使用 \(q_{B^+}\)、\(\mu_{B^-}\) 和 \(\sigma_{B^-}\) 其中之一作为额外输入来推导策略不同，我们的目标是扩展这些方法。我们希望<strong>同时纳入</strong> \(q_{B^+}\)、\(\mu_{B^-}\) 和 \(\sigma_{B^-}\) 来推导出 \(P(t)\) 的具体表达式，即确定 \(p(t)\)、\(\alpha\) 和 \(\beta\)。</p>
+
+<p>统计量如下：</p>
+
+\[
+\int_0^B q(\tau) \, \mathrm{d}\tau + q_{B^+} = 1, \tag{5a}
+\]
+\[
+\int_0^B \tau q(\tau) \, \mathrm{d}\tau = \mu_{B^-}, \tag{5b}
+\]
+\[
+\int_0^B \tau^2 q(\tau) \, \mathrm{d}\tau = \sigma_{B^-}, \tag{5c}
+\]
+
+<p>其中 \(\tau\) 和 \(q(\tau)\) 分别是下一个请求的到达时间和到达时间的概率密度函数。</p>
+
+<p>由 \(P(t)\) 得到的 \(\tau \leq B\) 情况下的期望成本为：</p>
+
+\[
+C(P(t), \tau \leq B) = \int_0^\tau (t + B)P(t) \, \mathrm{d}t + \int_\tau^B \tau P(t) \, \mathrm{d}t, \tag{6a}
+\]
+
+<p>而 \(\tau &gt; B\) 情况下的期望成本为：</p>
+
+\[
+C(P(t), \tau &gt; B) = \int_0^B (t + B)P(t) \, \mathrm{d}t. \tag{7a}
+\]
+
+<p>因此，利用（6a）和（7a），期望在线成本可写为：</p>
+
+\[
+J(P(t), q(\tau)) = \int_0^B C(P(t), \tau \leq B) q(\tau) \, \mathrm{d}\tau + C(P(t), \tau &gt; B) q_{B^+}. \tag{8a}
+\]
+
+<p><strong>对抗者</strong>会选择一个 \(q(\tau)\) 来最大化期望在线成本。相反，我们的目标是推导出 \(P(t)\)，使最坏情况下的期望在线成本 \(J(P(t), q(\tau))\) 最小化。因此，可以将其表述为一个<strong>极小极大问题</strong>：</p>
+
+\[
+\begin{array}{rl}
+\min_{P(t)} \max_{q(\tau)} &amp; J(P(t), q(\tau)), \\[0.8ex]
+\mathrm{s.t.} &amp; (5a), (5b), (5c), \\[0.4ex]
+&amp; \int_0^B p(t) \, \mathrm{d}t = 1 - \alpha - \beta,
+\end{array} \tag{9b}
+\]
+
+<p>其中约束（9b）确保 \(P(t)\) 是一个有效的概率密度函数。</p>
+
+<p>为求解该极小极大问题，我们构造最大化问题的<strong>对偶问题</strong>。通过将 \(q(\tau)\) 上的约束与拉格朗日乘子关联，并将（4a）代入 \(P(t)\)，我们得到最大化问题的拉格朗日函数：</p>
+
+\[
+\begin{array}{l}
+L(q(\tau), \lambda_1, \lambda_2, \lambda_3) = q_{B^+} \int_0^B (t + B) p(t) \, \mathrm{d}t + \alpha q_{B^+} B \\[0.6ex]
++ \int_0^B \left[C(P(t), \tau \leq B) - \lambda_1 - \lambda_2 \tau - \lambda_3 \tau^2\right] q(\tau) \, \mathrm{d}\tau \\[0.6ex]
++ 2\beta q_{B^+} B + \lambda_1 (1 - q_{B^+}) + \lambda_2 \mu_{B^-} + \lambda_3 \sigma_{B^-},
+\end{array} \tag{10a}
+\]
+
+<p>其中拉格朗日乘子 \(\lambda_1\)、\(\lambda_2\) 和 \(\lambda_3\) 分别与约束（5a）、（5b）和（5c）关联。对偶函数 \(g(\lambda_1, \lambda_2, \lambda_3) = \sup_{q(\tau)} L(q(\tau), \lambda_1, \lambda_2, \lambda_3)\) 仅在以下条件成立时有上界：</p>
+
+\[
+C(P(t), \tau \leq B) - \lambda_1 - \lambda_2 \tau - \lambda_3 \tau^2 = 0.
+\]
+
+<p>因此，得到的对偶问题为：</p>
+
+\[
+\begin{array}{rl}
+\min_{\lambda_1, \lambda_2, \lambda_3} &amp; \left[ q_{B^+} \int_0^B (t + B) p(t) \, \mathrm{d}t + \alpha q_{B^+} B + 2\beta q_{B^+} B + \lambda_1 (1 - q_{B^+}) + \lambda_2 \mu_{B^-} + \lambda_3 \sigma_{B^-} \right], \\[0.8ex]
+\mathrm{s.t.} &amp; C(P(t), \tau \leq B) - \lambda_1 - \lambda_2 \tau - \lambda_3 \tau^2 = 0, \\[0.4ex]
+&amp; 0 \leq \lambda_1, \quad 0 \leq \lambda_2, \quad 0 \leq \lambda_3.
+\end{array} \tag{11b}
+\]
+
+<p>接下来，我们通过求解对偶问题将 \(\lambda_1\)、\(\lambda_2\) 和 \(\lambda_3\) 转化为 \(\alpha\) 和 \(\beta\) 的函数，随后将其转换为关于 \(\alpha\) 和 \(\beta\) 的优化问题。为推导 \(p(t)\)，我们对（11b）关于 \(\tau\) 求二阶导，并将 \(\tau\) 替换为 \(t\)，得到以下常微分方程：</p>
+
+\[
+\frac{\mathrm{d}p(t)}{\mathrm{d}t} = \frac{1}{B} (p(t) + 2\lambda_3). \tag{12a}
+\]
+
+<p>考虑约束（9b）作为边界条件，该常微分方程的解为：</p>
+
+\[
+p(t) = c_0 e^{t/B} - 2\lambda_3, \tag{13a}
+\]
+\[
+c_0 = \frac{1 - \alpha - \beta + 2\lambda_3 B}{B(e - 1)}. \tag{13b}
+\]
+
+<p>此外，为了保持概率密度函数的非负性，必须对 \(\lambda_3\) 施加以下约束：</p>
+
+\[
+\lambda_3 \leq \frac{1 - \alpha - \beta}{2B(e - 2)}. \tag{14a}
+\]
+
+<p>将（13a）代入（11b），得到：</p>
+
+\[
+\lambda_1 = \alpha B, \tag{15a}
+\]
+\[
+\lambda_2 = \beta + \frac{e}{e-1}(1 - \alpha - \beta) + \frac{(4 - 2e)B}{e-1} \lambda_3, \tag{15b}
+\]
+
+<p>其中 \(\lambda_1\) 表示为 \(\alpha\) 的函数。为了将 \(\lambda_2\) 和 \(\lambda_3\) 表示为 \(\alpha\) 和 \(\beta\) 的函数，我们将（15b）代入约束（11b），同时将（14a）作为附加约束。此外，我们将（13a）代入（11a）。这导致对偶问题等价于：</p>
+
+\[
+\begin{array}{rl}
+\min_{\lambda_2, \lambda_3} &amp; \frac{(1 - \alpha - \beta)e q_{B^+} + B}{e - 1} + \alpha B + 2\beta q_{B^+} + B \\[0.6ex]
+&amp; + \lambda_2 \mu_{B^-} + \lambda_3 \left( \frac{(3 - e)q_{B^+} + B^2}{e - 1} + \sigma_{B^-} \right), \\[0.8ex]
+\mathrm{s.t.} &amp; \lambda_2 = \beta + \frac{e}{e-1}(1 - \alpha - \beta) + \frac{(4 - 2e)B}{e-1} \lambda_3, \\[0.4ex]
+&amp; 0 \leq \lambda_2, \quad 0 \leq \lambda_3 \leq \frac{1 - \alpha - \beta}{2B(e - 2)}.
+\end{array} \tag{16c}
+\]
+
+<p>这是一个<strong>线性规划问题</strong>。最优解将位于以下两个顶点之一：</p>
+
+\[
+\lambda_2 = \beta + \frac{e}{e-1}(1 - \alpha - \beta), \quad \lambda_3 = 0, \tag{17a}
+\]
+\[
+\lambda_2 = 1 - \alpha, \quad \lambda_3 = \frac{1 - \alpha - \beta}{2B(e - 2)}, \tag{17b}
+\]
+
+<p>其中 \(\lambda_2\) 和 \(\lambda_3\) 是 \(\alpha\) 和 \(\beta\) 的函数。然而，确定（17a）和（17b）之间的最优解需要进一步分析。因此，我们需要分别将（17a）和（17b）代入（16a）以评估哪个产生最优结果。</p>
+
+<p>将（17a）代入（16a），得到以下优化问题：</p>
+
+\[
+\begin{array}{rl}
+\min_{\alpha, \beta} &amp; \left[ -\frac{e}{e-1}(\mu_{B^-} + q_{B^+} + B) + B \right] \alpha \\[0.6ex]
+&amp; + \left[ -\frac{e}{e-1}(\mu_{B^-} + q_{B^+} + B) + \mu_{B^-} + 2q_{B^+} + B \right] \beta \\[0.6ex]
+&amp; + \frac{e}{e-1}(\mu_{B^-} + q_{B^+} + B), \\[0.8ex]
+\mathrm{s.t.} &amp; \alpha + \beta \leq 1, \quad 0 \leq \alpha, \quad 0 \leq \beta.
+\end{array} \tag{18a}
+\]
+
+<p>将（17b）代入（16a），得到以下优化问题：</p>
+
+\[
+\begin{array}{rl}
+\min_{\alpha, \beta} &amp; \left[ -\frac{(2e - 3)q_{B^+} + B}{2(e - 2)} - \frac{\sigma_{B^-}}{2B(e - 2)} - \mu_{B^-} + B \right] \alpha \\[0.6ex]
+&amp; + \left[ -\frac{(2e - 3)q_{B^+} + B}{2(e - 2)} - \frac{\sigma_{B^-}}{2B(e - 2)} + 2q_{B^+} + B \right] \beta \\[0.6ex]
+&amp; + \frac{(2e - 3)q_{B^+} + B}{2(e - 2)} + \frac{\sigma_{B^-}}{2B(e - 2)} + \mu_{B^-}, \\[0.8ex]
+\mathrm{s.t.} &amp; \alpha + \beta \leq 1, \quad 0 \leq \alpha, \quad 0 \leq \beta.
+\end{array} \tag{19a}
+\]
+
+<p>（18a）和（19a）都是关于变量 \(\alpha\) 和 \(\beta\) 的<strong>线性规划问题</strong>。它们的主要区别在于 \(p(t)\) 的形式不同，因为 \(\lambda_3\) 取不同值会导致 \(p(t)\) 如（13a）所示发生变化。</p>
+
+<p>线性规划问题（18a）在各顶点处的解和目标成本总结如下：</p>
+
+\[
+\alpha = 1, \beta = 0, \quad C_{1,0} = B, \tag{20a}
+\]
+\[
+\alpha = 0, \beta = 1, \quad C_{0,1} = \mu_{B^-} + 2q_{B^+} + B, \tag{20b}
+\]
+\[
+\alpha = 0, \beta = 0, \quad C_{0,0} = \frac{e(\mu_{B^-} + q_{B^+} + B)}{e - 1}. \tag{20c}
+\]
+
+<p>对于线性规划问题（19a），在各顶点处的解和相关目标成本总结如下：</p>
+
+\[
+\alpha = 1, \beta = 0, \quad C'_{1,0} = B, \tag{21a}
+\]
+\[
+\alpha = 0, \beta = 1, \quad C'_{0,1} = \mu_{B^-} + 2q_{B^+} + B, \tag{21b}
+\]
+\[
+\alpha = 0, \beta = 0, \quad C'_{0,0} = \frac{(2e - 3)q_{B^+} + B^2 + \sigma_{B^-}}{2(e - 2)} + \mu_{B^-}. \tag{21c}
+\]
+
+<p>在情况（20a）和（21a）中目标成本相同，同样地，在情况（20b）和（21b）中目标成本也相同。对于这些情况，我们分别将 \(\alpha = 1, \beta = 0\) 和 \(\alpha = 0, \beta = 1\) 代入（4a）得到 \(P(t)\)。对于情况（20c）和（21c），我们将 \(\alpha = 0, \beta = 0\)、（17a）、（17b）、（13a）和（13b）代入（4a）以分别得到 \(P(t)\)。</p>
+
+<p>2-斜率滑雪租赁问题的策略通过评估 \(C_{1,0}\)、\(C_{0,1}\)、\(C_{0,0}\) 和 \(C'_{0,0}\) 之间的最小目标成本来确定 \(P(t)\)。因此，策略总结如下：</p>
+
+\[
+P(t) =
+\begin{cases}
+\delta(t), &amp; C_{1,0} &lt; \min\{C_{0,1}, C_{0,0}, C'_{0,0}\}, \\[0.6ex]
+\delta(t - B), &amp; C_{0,1} &lt; \min\{C_{1,0}, C_{0,0}, C'_{0,0}\}, \\[0.6ex]
+\dfrac{1}{B(e - 2)} \left(e^{t/B} - 1\right), &amp; C'_{0,0} &lt; \min\{C_{1,0}, C_{0,1}, C_{0,0}\}, \\[0.6ex]
+\dfrac{1}{B(e - 1)} e^{t/B}, &amp; \text{其他情况}.
+\end{cases} \tag{22a}
+\]
+
+<p>对于最后两个概率密度函数，我们对它们进行积分以得到各自的累积分布函数，如下所示：</p>
+
+\[
+\hat{P}(t) =
+\begin{cases}
+\dfrac{e^{t/B} - t/B - 1}{e - 2}, &amp; 0 \leq t &lt; B, \\[0.8ex]
+1, &amp; B \leq t,
+\end{cases} \tag{23a}
+\]
+\[
+\hat{P}(t) =
+\begin{cases}
+\dfrac{e^{t/B} - 1}{e - 1}, &amp; 0 \leq t &lt; B, \\[0.8ex]
+1, &amp; B \leq t.
+\end{cases} \tag{23b}
+\]
+
+<p>（23a）和（23b）的主要区别在于（23a）<strong>更倾向于将第 \(\bar{i}+1\) 层到第 \(|\mathcal{I}|\) 层保留在内存中</strong>。</p>
+
+<p>剩下的问题是如何根据策略确定 \(\bar{t}\)。对于 \(P(t) = \delta(t)\) 和 \(P(t) = \delta(t - B)\) 的情况，我们分别设置 \(\bar{t} = 0\) 和 \(\bar{t} = B\)。对于最后两种情况，我们首先从 \([0,1]\) 均匀分布 \(\mathcal{U}[0,1]\) 中采样得到常数 \(\xi\)，然后将 \(\bar{t}\) 设置为满足 \(\xi \leq \hat{P}(t)\) 的最小 \(t\)。</p>
+
+<hr>
+
+<h3>F. 层粒度卸载算法（LUA）</h3>
+
+<p>基于上述分析，我们在算法1中总结了LUA。LUA等待空闲事件（第3-4行）。收到空闲事件后，进程恢复，且所有层当前都保留在内存中。LUA更新请求到达间隔的统计信息（第5行）。随后，它找出满足 \(D_i \leq D_{QoS}\) 的最小 \(\bar{i}\) 以满足QoS约束，确保第1层到第 \(\bar{i}\) 层持久保留在内存中（第6行）。调用 <strong>ComputeStrategy</strong> 函数来确定第 \(\bar{i}+1\) 层到第 \(|\mathcal{I}|\) 层的卸载时间。第 \(\bar{i}+1\) 层到第 \(|\mathcal{I}|\) 层保留时长为 \(\bar{t}\)（第7-8行）。之后，这些层在超时后被卸载（第9-11行）。如果在此期间收到繁忙事件，表示推理引擎已收到新请求，则终止层卸载操作。最后，LUA返回第3行等待下一个空闲事件（第12行）。此外，在动态工作负载场景中，我们引入<strong>滑动窗口</strong>方法来处理不规则的请求到达。具体而言，我们维护一个记录最近请求间隔的滑动窗口。窗口在每个新请求到达时更新，确保统计数据反映最近的工作负载动态。</p>
+
+<p><strong>ComputeStrategy</strong> 融合了统计信息 \(q_{B^+}\)、\(\mu_{B^-}\) 和 \(\sigma_{B^-}\) 来确定第 \(\bar{i}+1\) 层到第 \(|\mathcal{I}|\) 层的卸载时间。它从 \([0,1]\) 区间内的均匀分布中采样一个常数 \(\xi\)（第14行）。随后，根据请求到达间隔的统计信息计算相应的目标成本（第15行）。如第IV-E节分析，ComputeStrategy 通过评估 \(C_{1,0}\)、\(C_{0,1}\)、\(C_{0,0}\) 和 \(C'_{0,0}\) 之间的最小目标成本，根据 \(P(t)\) 推导出 \(\bar{t}\)（第16-25行）。</p>
+
+<div class="algo">
+<strong>算法1 层粒度卸载算法（LUA）</strong><br><br>
+<strong>输入：</strong> \(c_i, d_i, \eta, \mathcal{I}, D_{QoS}\)<br><br>
+1: 对 \(i \in \mathcal{I} \cup \{0\}\)：<br>
+2: &nbsp;&nbsp;&nbsp;&nbsp;设置 \(C_i \leftarrow \sum_{i'\leq i} c_{i'}\) 和 \(D_i \leftarrow \sum_{i'\geq i} d_{i'}\)<br><br>
+3: <strong>while</strong> 未收到空闲事件 <strong>do</strong><br>
+4: &nbsp;&nbsp;&nbsp;&nbsp;等待空闲事件<br>
+5: 更新 \(q_{B^+}\)、\(\mu_{B^-}\)、\(\sigma_{B^-}\)，并设置 \(t_{idle} \leftarrow\) 当前时间<br>
+6: 设置 \(\bar{i} \leftarrow \{\min_{i\in \mathcal{I}}\{i\} \mid D_i \leq D_{QoS}\}\) 和 \(B \leftarrow \eta D_{\bar{i}} / (C_{|\mathcal{I}|} - C_{\bar{i}})\)<br>
+7: 调用 \(\bar{t} \leftarrow \text{ComputeStrategy}(B, q_{B^+}, \mu_{B^-}, \sigma_{B^-})\)<br>
+8: 设置 \(\{t_i \leftarrow +\infty \mid 1 \leq i \leq \bar{i}\}\) 和 \(\{t_i \leftarrow \bar{t} \mid \bar{i}+1 \leq i \leq |\mathcal{I}|\}\)<br>
+9: <strong>while</strong> 未收到繁忙事件 <strong>do</strong><br>
+10: &nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> 当前时间 \(- t_{idle} \geq \bar{t}\) <strong>then</strong><br>
+11: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;向卸载引擎发送卸载事件，卸载第 \((\bar{i}+1)\) 到第 \(|\mathcal{I}|\) 层<br>
+12: 跳转到第3行<br><br>
+13: <strong>function</strong> ComputeStrategy\((B, q_{B^+}, \mu_{B^-}, \sigma_{B^-})\)<br>
+14: &nbsp;&nbsp;&nbsp;&nbsp;从均匀分布 \(\mathcal{U}[0,1]\) 中采样得到 \(\xi\)<br>
+15: &nbsp;&nbsp;&nbsp;&nbsp;按 (20a)、(20b)、(20c) 和 (21c) 计算 \(C_{1,0}\)、\(C_{0,1}\)、\(C_{0,0}\) 和 \(C'_{0,0}\)<br>
+16: &nbsp;&nbsp;&nbsp;&nbsp;<strong>if</strong> \(C_{1,0} &lt; \min\{C_{0,1}, C_{0,0}, C'_{0,0}\}\) <strong>then</strong><br>
+17: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;设置 \(\bar{t} \leftarrow 0\)<br>
+18: &nbsp;&nbsp;&nbsp;&nbsp;<strong>else if</strong> \(C_{0,1} &lt; \min\{C_{1,0}, C_{0,0}, C'_{0,0}\}\) <strong>then</strong><br>
+19: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;设置 \(\bar{t} \leftarrow B\)<br>
+20: &nbsp;&nbsp;&nbsp;&nbsp;<strong>else if</strong> \(C'_{0,0} &lt; \min\{C_{1,0}, C_{0,1}, C_{0,0}\}\) <strong>then</strong><br>
+21: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;按 (23a) 计算 \(\hat{P}(t)\)<br>
+22: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;设置 \(\bar{t} \leftarrow \{\min\{t\} \mid \xi \leq \hat{P}(t)\}\)<br>
+23: &nbsp;&nbsp;&nbsp;&nbsp;<strong>else</strong><br>
+24: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;按 (23b) 计算 \(\hat{P}(t)\)<br>
+25: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;设置 \(\bar{t} \leftarrow \{\min\{t\} \mid \xi \leq \hat{P}(t)\}\)<br>
+26: <strong>return</strong> \(\bar{t}\)
+</div>
+
+<hr>
+
+<h3>G. 时间复杂度分析</h3>
+
+<p>我们现在分析LUA的时间复杂度。第6行选择满足QoS约束的索引 \(\bar{i}\)，需要 \(O(|\mathcal{I}|)\) 时间。随后更新卸载定时器也需要 \(O(|\mathcal{I}|)\) 时间。<strong>ComputeStrategy</strong> 函数（第13-25行）包含以下操作：从均匀分布采样 \(O(1)\)，计算相应的目标成本 \(O(1)\)，以及设置 \(\bar{t}\) \(O(1)\)。因此，整体最坏情况时间复杂度为 \(O(|\mathcal{I}|)\)。LUA的低开销通过在NVIDIA Jetson AGX Orin设备上的运行时测量得到了进一步验证，其决策过程引入的开销仅为约<strong>1毫秒</strong>。</p>
+
+</body>
+</html>
